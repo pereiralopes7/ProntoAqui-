@@ -14,6 +14,7 @@ from app.routes.chat_routes import chat
 from app.routes.pagamento_routes import pagamento
 from app.routes.admin_routes import admin_bp
 from app.services.chat_json_service import limpar_mensagens_antigas
+from app.services.servico_status_service import carregar_status
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = PROJECT_ROOT / "BrunoDemaze-repo"
@@ -25,7 +26,11 @@ app = Flask(
     static_folder=None,
     template_folder=str(FRONTEND_DIR),
 )
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode=os.environ.get("SOCKETIO_ASYNC_MODE", "threading"),
+)
 
 
 # Inicializar banco de dados automaticamente
@@ -43,7 +48,11 @@ def init_database():
         try:
             reset_script = Path(__file__).parent / "reset_db.py"
             print(f"[DB] Executando {reset_script}...")
-            subprocess.run([sys.executable, str(reset_script)], check=True)
+            subprocess.run(
+                [sys.executable, "-m", "app.reset_db"],
+                check=True,
+                cwd=str(PROJECT_ROOT),
+            )
             print("[DB] reset_db.py concluído!")
         except Exception as e:
             print(f"[DB] Erro ao executar reset_db.py: {e}")
@@ -53,7 +62,11 @@ def init_database():
         try:
             seed_script = Path(__file__).parent / "seed_db.py"
             print(f"[DB] Executando {seed_script}...")
-            subprocess.run([sys.executable, str(seed_script)], check=True)
+            subprocess.run(
+                [sys.executable, "-m", "app.seed_db"],
+                check=True,
+                cwd=str(PROJECT_ROOT),
+            )
             print("[DB] seed_db.py concluído!")
         except Exception as e:
             print(f"[DB] Erro ao executar seed_db.py: {e}")
@@ -68,6 +81,7 @@ def init_database():
 with app.app_context():
     init_database()
     limpar_mensagens_antigas()
+    carregar_status()
 
 app.register_blueprint(pagamento)
 
@@ -306,10 +320,11 @@ def perfil():
 if __name__ == "__main__":
     print(app.url_map)
     port = int(os.environ.get("PORT", 5000))
+    host = os.environ.get("HOST", "0.0.0.0")
     debug = os.environ.get("FLASK_DEBUG") == "1"
     socketio.run(
         app,
-        host="0.0.0.0",
+        host=host,
         port=port,
         debug=debug,
         allow_unsafe_werkzeug=True,

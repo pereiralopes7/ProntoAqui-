@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nome char(70) NOT NULL,
     email char(50) UNIQUE NOT NULL,
     senha char(20) NOT NULL,
+    tipo_usuario TEXT DEFAULT 'contratante',
     telefone char(15),
     cidade varchar(20),
     estado varchar(20),
@@ -40,6 +41,23 @@ CREATE TABLE IF NOT EXISTS usuarios (
     foto_posicao_x INTEGER DEFAULT 50,
     data_nascimento DATE,
     data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+# =========================
+# ENDEREÇOS DOS USUÁRIOS
+# =========================
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS enderecos_usuario (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id INTEGER UNIQUE NOT NULL,
+    rua varchar(120),
+    numero varchar(20),
+    cep varchar(12),
+    bairro varchar(80),
+    complemento varchar(120),
+    ponto_referencia varchar(160),
+    FOREIGN KEY(usuario_id) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
 )
 """)
 
