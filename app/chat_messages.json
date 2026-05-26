@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "id_conversa": "1",
+    "remetente_id": 1,
+    "texto": "oi",
+    "data_envio": "2026-05-06T20:30:02"
+  },
+  {
+    "id": 2,
+    "id_conversa": "11",
+    "remetente_id": 1,
+    "texto": "oi",
+    "data_envio": "2026-05-10T11:44:15"
+  }
+]

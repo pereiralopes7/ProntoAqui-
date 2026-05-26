@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>ProntoAqui</title>
+
+<link rel="stylesheet" href="css/style.css">
+
+</head>
+
+<body>
+
+<!-- MENU DO USUARIO -->
+<nav class="user-menu" aria-label="Menu do usuário">
+<button class="user-menu-button" id="user-menu-button" type="button" aria-label="Abrir opções do usuário" aria-expanded="false">
+<span class="user-icon" aria-hidden="true"></span>
+</button>
+
+<div class="user-menu-panel" id="user-menu-panel">
+<div class="user-menu-name" id="user-menu-name">Usuário</div>
+<div class="user-menu-divider"></div>
+<a href="login.html">Login / Registrar</a>
+<a href="meus-servicos.html" id="menu-servicos">Meus serviços</a>
+<a href="perfil-config.html">Configurações do usuário</a>
+</div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+
+<h1 class="logo-centro">
+Pronto<span class="logo-verde">Aqui</span>
+</h1>
+
+<p>
+Conectando clientes a profissionais
+</p>
+
+<div class="botoes-home">
+
+<a href="servicos.html" id="home-primary-link">
+<button class="btn-amarelo" id="home-primary-button">Buscar profissionais</button>
+</a>
+
+<a href="meus-servicos.html" id="home-secondary-link">
+<button class="btn-secundario" id="home-secondary-button">Meus serviços</button>
+</a>
+
+</div>
+
+</section>
+
+
+<!-- INFO -->
+<section class="info">
+
+<div class="card">
+<h3>⚡ Rápido</h3>
+<p>Encontre profissionais em minutos</p>
+</div>
+
+<div class="card">
+<h3>🔒 Seguro</h3>
+<p>Avaliações reais e confiáveis</p>
+</div>
+
+<div class="card">
+<h3>📱 Prático</h3>
+<p>Contrate com poucos toques</p>
+</div>
+
+</section>
+
+
+<footer>
+© 2026 ProntoAqui
+</footer>
+
+<script>
+const userMenu = document.querySelector(".user-menu");
+const userMenuButton = document.getElementById("user-menu-button");
+const userMenuPanel = document.getElementById("user-menu-panel");
+const userMenuName = document.getElementById("user-menu-name");
+const menuServicos = document.getElementById("menu-servicos");
+const homePrimaryLink = document.getElementById("home-primary-link");
+const homePrimaryButton = document.getElementById("home-primary-button");
+const homeSecondaryLink = document.getElementById("home-secondary-link");
+const homeSecondaryButton = document.getElementById("home-secondary-button");
+const usuarioSalvo = localStorage.getItem("usuario");
+
+function usuarioEhPrestador(usuario) {
+const tipo = usuario?.tipo_usuario || usuario?.tipo || "";
+return tipo === "contratado" || tipo === "prestador";
+}
+
+if (usuarioSalvo) {
+try {
+const usuario = JSON.parse(usuarioSalvo);
+userMenuName.textContent = usuario.nome || "Usuário";
+
+if (usuarioEhPrestador(usuario)) {
+const perfilUrl = usuario.id ? `perfil?id=${usuario.id}` : "perfil-config.html";
+menuServicos.textContent = "Solicitações recebidas";
+homePrimaryLink.href = perfilUrl;
+homePrimaryButton.textContent = "Meu perfil profissional";
+homeSecondaryLink.href = "meus-servicos.html";
+homeSecondaryButton.textContent = "Solicitações recebidas";
+} else {
+menuServicos.textContent = "Solicitações em andamento";
+homePrimaryLink.href = "servicos.html";
+homePrimaryButton.textContent = "Buscar profissionais";
+homeSecondaryLink.href = "meus-servicos.html";
+homeSecondaryButton.textContent = "Solicitações em andamento";
+}
+} catch (error) {
+userMenuName.textContent = "Usuário";
+}
+}
+
+userMenuButton.addEventListener("click", () => {
+const isOpen = userMenu.classList.toggle("is-open");
+userMenuButton.setAttribute("aria-expanded", String(isOpen));
+});
+
+document.addEventListener("click", (event) => {
+if (!userMenu.contains(event.target)) {
+userMenu.classList.remove("is-open");
+userMenuButton.setAttribute("aria-expanded", "false");
+}
+});
+
+userMenuPanel.addEventListener("click", () => {
+userMenu.classList.remove("is-open");
+userMenuButton.setAttribute("aria-expanded", "false");
+});
+</script>
+
+</body>
+</html>

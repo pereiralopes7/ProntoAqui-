@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entrar</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<div class="btn-voltar" onclick="history.back()">
+Voltar
+</div>
+
+<section class="auth-container">
+<form class="auth-box" id="login-form">
+<h2>Entrar</h2>
+
+<input id="login-email" type="email" placeholder="Email" required>
+<input id="login-senha" type="password" placeholder="Senha" required>
+
+<button class="btn-amarelo" type="submit">Entrar</button>
+
+<p class="auth-link">
+Não tem uma conta? <a href="cadastro.html">Cadastre-se</a>
+</p>
+</form>
+</section>
+<div class="status-popup" id="status-popup"></div>
+<script>
+const loginForm = document.getElementById("login-form");
+const statusPopup = document.getElementById("status-popup");
+
+function showPopup(message, isError = false) {
+    statusPopup.textContent = message;
+    statusPopup.classList.toggle("is-error", isError);
+    statusPopup.classList.add("is-visible");
+
+    setTimeout(() => {
+        statusPopup.classList.remove("is-visible");
+    }, 2200);
+}
+
+loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const email = document.getElementById("login-email").value.trim();
+    const senha = document.getElementById("login-senha").value;
+
+    try {
+
+        // DEFINE A ROTA AUTOMATICAMENTE
+        const rota = email.includes("admin")
+            ? "/auth/admin/login"
+            : "/auth/login";
+
+        const resposta = await fetch(rota, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ email, senha })
+        });
+
+        const data = await resposta.json();
+
+        if (!resposta.ok) {
+            showPopup(data.erro || "Não foi possível fazer login.", true);
+            return;
+        }
+
+        // SALVA DADOS
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("usuario", JSON.stringify(data));
+        localStorage.setItem("tipo_usuario", data.tipo);
+
+        showPopup("Login realizado com sucesso!");
+
+        // REDIRECIONA
+        setTimeout(() => {
+
+            if (data.tipo === "admin") {
+                window.location.href = "admin.html";
+            } else {
+                window.location.href = "index.html";
+            }
+
+        }, 900);
+
+    } catch (error) {
+        console.error(error);
+        showPopup("Erro ao conectar com o servidor.", true);
+    }
+});
+</script>
+
+</body>
+</html>

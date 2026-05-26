@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Painel Administrativo</title>
+
+<link rel="stylesheet" href="css/style.css">
+
+<style>
+.admin-container {
+  max-width: 1200px;
+  margin: 50px auto;
+  padding: 20px;
+}
+
+.admin-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.admin-card {
+  background: white;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+  text-align: center;
+  transition: transform 0.3s;
+}
+
+.admin-card:hover {
+  transform: translateY(-5px);
+}
+
+.admin-card h3 {
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.admin-card p {
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.admin-btn {
+  padding: 12px 25px;
+  background: linear-gradient(135deg, #FFD700 0%, #FFC700 100%);
+  border: none;
+  border-radius: 8px;
+  color: #000;
+  font-weight: bold;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.3s;
+}
+
+.admin-btn:hover {
+  background: linear-gradient(135deg, #FFC700 0%, #FFA700 100%);
+  transform: scale(1.05);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 25px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.stat-number {
+  font-size: 36px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.stat-label {
+  font-size: 14px;
+  opacity: 0.9;
+}
+</style>
+
+</head>
+
+<body>
+
+<!-- NAVBAR -->
+<div class="navbar">
+  <a href="index.html" class="navbar-logo">
+    Pronto<span style="color: #333;">Aqui</span>
+  </a>
+
+  <div class="navbar-right">
+    <div class="usuario-info">
+      👤 <span id="usuario-logado">Admin</span>
+    </div>
+    <button class="btn-logout" onclick="fazerLogout()">Sair</button>
+  </div>
+</div>
+
+<div class="admin-container">
+
+<div class="admin-header">
+  <h1>🛠️ Painel Administrativo</h1>
+  <p>Gerencie usuários, serviços e configurações do sistema</p>
+</div>
+
+<!-- ESTATÍSTICAS -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-number" id="total-usuarios">0</div>
+    <div class="stat-label">Total de Usuários</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="total-servicos">0</div>
+    <div class="stat-label">Serviços Ativos</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="total-contratos">0</div>
+    <div class="stat-label">Contratos Realizados</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="total-pagamentos">0</div>
+    <div class="stat-label">Pagamentos Processados</div>
+  </div>
+</div>
+
+<!-- FUNCIONALIDADES -->
+<div class="admin-grid">
+  <div class="admin-card">
+    <h3>👥 Gerenciar Usuários</h3>
+    <p>Visualizar, editar e gerenciar todos os usuários da plataforma</p>
+    <button class="admin-btn" onclick="gerenciarUsuarios()">Acessar</button>
+  </div>
+
+  <div class="admin-card">
+    <h3>🛠️ Gerenciar Serviços</h3>
+    <p>Aprovar, editar ou remover serviços publicados</p>
+    <button class="admin-btn" onclick="gerenciarServicos()">Acessar</button>
+  </div>
+
+  <div class="admin-card">
+    <h3>💰 Gerenciar Pagamentos</h3>
+    <p>Visualizar histórico de pagamentos e transações</p>
+    <button class="admin-btn" onclick="gerenciarPagamentos()">Acessar</button>
+  </div>
+
+  <div class="admin-card">
+    <h3>📊 Relatórios</h3>
+    <p>Gerar relatórios e estatísticas da plataforma</p>
+    <button class="admin-btn" onclick="gerarRelatorios()">Acessar</button>
+  </div>
+
+  <div class="admin-card">
+    <h3>⚙️ Configurações</h3>
+    <p>Configurar parâmetros do sistema</p>
+    <button class="admin-btn" onclick="configuracoesSistema()">Acessar</button>
+  </div>
+
+  <div class="admin-card">
+    <h3>🚨 Moderação</h3>
+    <p>Gerenciar denúncias e moderar conteúdo</p>
+    <button class="admin-btn" onclick="moderacaoConteudo()">Acessar</button>
+  </div>
+</div>
+
+</div>
+
+<script src="js/auth.js"></script>
+<script>
+// Proteger página - só admins podem acessar
+protegerPagina()
+
+const usuario = obterUsuarioLogado()
+if (usuario.tipo !== 'admin') {
+  document.body.innerHTML = '<div style="text-align: center; margin-top: 50px;"><h2>Acesso negado - Apenas administradores</h2><a href="index.html" class="btn-amarelo">Voltar para home</a></div>'
+}
+
+// Exibir nome do usuário
+exibirNomeUsuario()
+
+// Carregar estatísticas da API
+async function carregarEstatisticas() {
+  try {
+    const response = await fetch('/admin/stats', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error('Erro ao carregar estatísticas')
+    }
+
+    const stats = await response.json()
+
+    // Atualizar os números na tela
+    document.getElementById('total-usuarios').innerText = stats.usuarios.total || 0
+    document.getElementById('total-servicos').innerText = stats.servicos || 0
+    document.getElementById('total-contratos').innerText = stats.contratos || 0
+    document.getElementById('total-pagamentos').innerText = stats.pagamentos || 0
+
+  } catch (error) {
+    console.error('Erro ao carregar estatísticas:', error)
+    // Manter valores padrão se der erro
+    document.getElementById('total-usuarios').innerText = '0'
+    document.getElementById('total-servicos').innerText = '0'
+    document.getElementById('total-contratos').innerText = '0'
+    document.getElementById('total-pagamentos').innerText = '0'
+  }
+}
+
+// Carregar estatísticas ao carregar página
+carregarEstatisticas()
+
+// Funções dos botões (placeholders)
+function gerenciarUsuarios() {
+  alert('Funcionalidade em desenvolvimento')
+}
+
+function gerenciarServicos() {
+  alert('Funcionalidade em desenvolvimento')
+}
+
+function gerenciarPagamentos() {
+  alert('Funcionalidade em desenvolvimento')
+}
+
+function gerarRelatorios() {
+  alert('Funcionalidade em desenvolvimento')
+}
+
+function configuracoesSistema() {
+  alert('Funcionalidade em desenvolvimento')
+}
+
+function moderacaoConteudo() {
+  alert('Funcionalidade em desenvolvimento')
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Configurações do perfil</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<div class="btn-voltar" onclick="history.back()">
+Voltar
+</div>
+
+<section class="profile-settings">
+<div class="profile-settings-box">
+<h1>Configurações do perfil</h1>
+
+<div class="profile-photo-box">
+    <label for="profile-photo-input" class="profile-photo-label">
+        <div class="profile-photo-preview">
+            <img id="profile-photo-img" src="" alt="Foto de perfil" style="display: none;">
+            <span id="profile-photo-placeholder">+</span>
+        </div>
+
+        <span id="profile-photo-text">Alterar foto de perfil</span>
+    </label>
+
+    <input id="profile-photo-input" type="file" accept="image/png, image/jpeg, image/jpg" hidden>
+
+    <button class="profile-photo-remove" id="profile-photo-remove" type="button" style="display: none;">
+        Apagar foto
+    </button>
+
+    <div id="profile-photo-adjustments" class="ajustes-foto" style="display: none;">
+        <label>
+            Ajustar vertical
+            <input id="profile-photo-pos-y" type="range" min="0" max="100" value="50">
+        </label>
+    </div>
+</div>
+
+<label for="profile-name">Nome</label>
+<input id="profile-name" type="text" placeholder="Seu nome" disabled>
+
+<label for="profile-email">Email</label>
+<input id="profile-email" type="email" placeholder="seuemail@exemplo.com" disabled>
+
+<label for="profile-phone">Telefone</label>
+<input id="profile-phone" type="tel" placeholder="(00) 00000-0000" disabled>
+
+<label for="profile-birthdate">Data de nascimento</label>
+<input id="profile-birthdate" type="date" disabled>
+
+<div id="profile-provider-fields" style="display: none;">
+    <label for="profile-profession">Profissão</label>
+    <input id="profile-profession" type="text" placeholder="Profissão / Serviço oferecido" disabled>
+
+    <label for="profile-description">Descrição do perfil</label>
+    <textarea id="profile-description" placeholder="Descrição do perfil do prestador" disabled></textarea>
+</div>
+
+<label for="profile-cep">CEP</label>
+<input id="profile-cep" type="text" placeholder="CEP" disabled>
+
+<label for="profile-street">Rua</label>
+<input id="profile-street" type="text" placeholder="Rua" disabled>
+
+<label for="profile-number">Número</label>
+<input id="profile-number" type="text" placeholder="Número" disabled>
+
+<label for="profile-neighborhood">Bairro</label>
+<input id="profile-neighborhood" type="text" placeholder="Bairro" disabled>
+
+<label for="profile-city">Cidade</label>
+<input id="profile-city" type="text" placeholder="Cidade" disabled>
+
+<label for="profile-state">Estado</label>
+<input id="profile-state" type="text" placeholder="Estado" maxlength="2" disabled>
+
+<label for="profile-complement">Complemento</label>
+<input id="profile-complement" type="text" placeholder="Complemento" disabled>
+
+<label for="profile-reference">Ponto de referência</label>
+<input id="profile-reference" type="text" placeholder="Ponto de referência" disabled>
+
+<button class="btn-secundario profile-action-button" id="edit-profile" type="button">Editar dados</button>
+<button class="btn-amarelo profile-action-button" id="save-profile" type="button" disabled>Salvar alterações</button>
+<button class="btn-danger" id="delete-account" type="button">Apagar conta</button>
+</div>
+</section>
+
+<script>
+const token = localStorage.getItem("token");
+
+const deleteAccountButton = document.getElementById("delete-account");
+const editProfileButton = document.getElementById("edit-profile");
+const saveProfileButton = document.getElementById("save-profile");
+const providerFields = document.getElementById("profile-provider-fields");
+
+const profilePhotoInput = document.getElementById("profile-photo-input");
+const profilePhotoImg = document.getElementById("profile-photo-img");
+const profilePhotoPlaceholder = document.getElementById("profile-photo-placeholder");
+const profilePhotoText = document.getElementById("profile-photo-text");
+const profilePhotoLabel = document.querySelector(".profile-photo-label");
+const profilePhotoRemove = document.getElementById("profile-photo-remove");
+const profilePhotoAdjustments = document.getElementById("profile-photo-adjustments");
+const profilePhotoPosY = document.getElementById("profile-photo-pos-y");
+const profileCepInput = document.getElementById("profile-cep");
+
+let fotoSelecionada = null;
+let fotoRemovida = false;
+let fotoAtualUrl = "";
+let ajusteVertical = 50;
+let usuarioAtualEhPrestador = false;
+
+const profileInputs = [
+    document.getElementById("profile-name"),
+    document.getElementById("profile-email"),
+    document.getElementById("profile-phone"),
+    document.getElementById("profile-birthdate"),
+    document.getElementById("profile-profession"),
+    document.getElementById("profile-description"),
+    document.getElementById("profile-cep"),
+    document.getElementById("profile-street"),
+    document.getElementById("profile-number"),
+    document.getElementById("profile-neighborhood"),
+    document.getElementById("profile-city"),
+    document.getElementById("profile-state"),
+    document.getElementById("profile-complement"),
+    document.getElementById("profile-reference")
+];
+
+if (!token) {
+    alert("Você precisa estar logado para acessar as configurações.");
+    window.location.href = "login.html";
+}
+
+async function buscarCepPerfil(cep) {
+    cep = String(cep || "").replace(/\D/g, "");
+
+    if (cep.length !== 8) {
+        return;
+    }
+
+    try {
+        const resposta = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await resposta.json();
+
+        if (!resposta.ok || data.erro) {
+            alert("CEP não encontrado.");
+            return;
+        }
+
+        document.getElementById("profile-street").value = data.logradouro || "";
+        document.getElementById("profile-neighborhood").value = data.bairro || "";
+        document.getElementById("profile-city").value = data.localidade || "";
+        document.getElementById("profile-state").value = data.uf || "";
+    } catch (error) {
+        console.error("Erro ao buscar CEP:", error);
+        alert("Não foi possível buscar o CEP agora.");
+    }
+}
+
+function setEditMode(enabled) {
+    profileInputs.forEach((input) => {
+        if (input) {
+            input.disabled = !enabled;
+        }
+    });
+
+    saveProfileButton.disabled = !enabled;
+    editProfileButton.disabled = enabled;
+    profilePhotoInput.disabled = false;
+}
+
+function usuarioEhPrestador(data) {
+    const tipoUsuario = data.tipo || data.tipo_usuario || "";
+    return tipoUsuario === "contratado" || tipoUsuario === "prestador";
+}
+
+function normalizarUrlFoto(urlFoto) {
+    if (!urlFoto) {
+        return "";
+    }
+
+    if (
+        urlFoto.startsWith("http") ||
+        urlFoto.startsWith("/") ||
+        urlFoto.startsWith("blob:") ||
+        urlFoto.startsWith("data:")
+    ) {
+        return urlFoto;
+    }
+
+    return "/" + urlFoto;
+}
+
+function mostrarFotoPerfil(urlFoto) {
+    const fotoNormalizada = normalizarUrlFoto(urlFoto);
+
+    if (!fotoNormalizada) {
+        limparPreviewFoto(false);
+        return;
+    }
+
+    profilePhotoImg.src = fotoNormalizada;
+    profilePhotoImg.style.display = "block";
+    profilePhotoPlaceholder.style.display = "none";
+    profilePhotoText.textContent = "Trocar foto de perfil";
+    profilePhotoRemove.style.display = "block";
+    profilePhotoRemove.disabled = false;
+    profilePhotoAdjustments.style.display = "flex";
+    aplicarPosicaoFoto();
+}
+
+function limparPreviewFoto(marcarComoRemovida = false) {
+    profilePhotoImg.removeAttribute("src");
+    profilePhotoImg.style.display = "none";
+    profilePhotoPlaceholder.style.display = "flex";
+    profilePhotoText.textContent = "Adicionar foto";
+    profilePhotoRemove.style.display = "none";
+    profilePhotoRemove.disabled = true;
+    profilePhotoAdjustments.style.display = "none";
+    profilePhotoInput.disabled = false;
+
+    if (marcarComoRemovida) {
+        fotoSelecionada = null;
+        fotoRemovida = true;
+        fotoAtualUrl = "";
+        profilePhotoInput.value = "";
+    }
+}
+
+function atualizarPreviewFoto(urlFoto) {
+    mostrarFotoPerfil(urlFoto);
+}
+
+function aplicarPosicaoFoto() {
+    if (!profilePhotoImg) {
+        return;
+    }
+
+    profilePhotoImg.style.objectFit = "cover";
+    profilePhotoImg.style.objectPosition = `50% ${ajusteVertical}%`;
+}
+
+function atualizarAjusteVertical(valor) {
+    const valorNumerico = Number(valor);
+    ajusteVertical = Number.isFinite(valorNumerico) ? valorNumerico : 50;
+    profilePhotoPosY.value = ajusteVertical;
+    aplicarPosicaoFoto();
+}
+
+profilePhotoImg.onerror = () => {
+    console.error("Erro ao carregar foto de perfil:", profilePhotoImg.src);
+    limparPreviewFoto(false);
+};
+
+profilePhotoLabel.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    profilePhotoInput.disabled = false;
+    profilePhotoInput.value = "";
+    profilePhotoInput.click();
+});
+
+profilePhotoInput.addEventListener("click", () => {
+    profilePhotoInput.disabled = false;
+    profilePhotoInput.value = "";
+});
+
+profilePhotoInput.addEventListener("change", () => {
+    const arquivo = profilePhotoInput.files[0];
+
+    if (!arquivo) {
+        return;
+    }
+
+    const tiposPermitidos = ["image/jpeg", "image/png", "image/jpg"];
+
+    if (!tiposPermitidos.includes(arquivo.type)) {
+        alert("Envie uma foto em formato JPG ou PNG.");
+        profilePhotoInput.value = "";
+        return;
+    }
+
+    if (arquivo.size > 5 * 1024 * 1024) {
+        alert("A foto deve ter no máximo 5MB.");
+        profilePhotoInput.value = "";
+        return;
+    }
+
+    const previewUrl = URL.createObjectURL(arquivo);
+    fotoSelecionada = arquivo;
+    fotoRemovida = false;
+    fotoAtualUrl = previewUrl;
+    atualizarAjusteVertical(50);
+    setEditMode(true);
+    mostrarFotoPerfil(previewUrl);
+});
+
+profilePhotoRemove.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    atualizarAjusteVertical(50);
+    setEditMode(true);
+    limparPreviewFoto(true);
+});
+
+profilePhotoPosY.addEventListener("input", function () {
+    atualizarAjusteVertical(this.value);
+    setEditMode(true);
+});
+
+profileCepInput.addEventListener("blur", () => buscarCepPerfil(profileCepInput.value));
+profileCepInput.addEventListener("input", () => {
+    const cepLimpo = profileCepInput.value.replace(/\D/g, "");
+    if (cepLimpo.length === 8) {
+        buscarCepPerfil(cepLimpo);
+        setEditMode(true);
+    }
+});
+
+async function carregarDadosUsuario() {
+    try {
+        const resposta = await fetch("/usuario/me", {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        });
+
+        const data = await resposta.json();
+
+        if (!resposta.ok) {
+            alert(data.erro || "Não foi possível carregar seus dados.");
+            window.location.href = "login.html";
+            return;
+        }
+
+        document.getElementById("profile-name").value = data.nome || "";
+        document.getElementById("profile-email").value = data.email || "";
+        document.getElementById("profile-phone").value = data.telefone || "";
+        document.getElementById("profile-birthdate").value = data.data_nascimento || "";
+
+        fotoSelecionada = null;
+        fotoRemovida = false;
+        fotoAtualUrl = normalizarUrlFoto(data.foto_perfil || data.foto || "");
+        atualizarAjusteVertical(data.foto_posicao_y ?? 50);
+
+        if (fotoAtualUrl) {
+            mostrarFotoPerfil(fotoAtualUrl);
+        } else {
+            limparPreviewFoto(false);
+        }
+
+        usuarioAtualEhPrestador = usuarioEhPrestador(data);
+
+        if (usuarioAtualEhPrestador) {
+            providerFields.style.display = "block";
+            document.getElementById("profile-profession").value = data.profissao || "";
+            document.getElementById("profile-description").value = data.descricao || "";
+        } else {
+            providerFields.style.display = "none";
+            document.getElementById("profile-profession").value = "";
+            document.getElementById("profile-description").value = "";
+        }
+
+        document.getElementById("profile-street").value = data.endereco?.rua || "";
+        document.getElementById("profile-number").value = data.endereco?.numero || "";
+        document.getElementById("profile-cep").value = data.endereco?.cep || "";
+        document.getElementById("profile-neighborhood").value = data.endereco?.bairro || "";
+        document.getElementById("profile-city").value = data.cidade || data.endereco?.cidade || "";
+        document.getElementById("profile-state").value = data.estado || data.endereco?.estado || "";
+        document.getElementById("profile-complement").value = data.endereco?.complemento || "";
+        document.getElementById("profile-reference").value = data.endereco?.ponto_referencia || "";
+
+        localStorage.setItem("usuario", JSON.stringify(data));
+    } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+        alert("Erro ao conectar com o servidor.");
+    }
+}
+
+editProfileButton.addEventListener("click", () => {
+    setEditMode(true);
+    document.getElementById("profile-name").focus();
+});
+
+saveProfileButton.addEventListener("click", async (event) => {
+    event.preventDefault();
+
+    const dadosAtualizados = {
+        nome: document.getElementById("profile-name").value.trim(),
+        email: document.getElementById("profile-email").value.trim(),
+        telefone: document.getElementById("profile-phone").value.trim(),
+        data_nascimento: document.getElementById("profile-birthdate").value,
+        profissao: usuarioAtualEhPrestador ? document.getElementById("profile-profession")?.value.trim() || "" : "",
+        descricao: usuarioAtualEhPrestador ? document.getElementById("profile-description")?.value.trim() || "" : "",
+        endereco: {
+            rua: document.getElementById("profile-street").value.trim(),
+            numero: document.getElementById("profile-number").value.trim(),
+            cep: document.getElementById("profile-cep").value.trim(),
+            bairro: document.getElementById("profile-neighborhood").value.trim(),
+            cidade: document.getElementById("profile-city").value.trim(),
+            estado: document.getElementById("profile-state").value.trim().toUpperCase(),
+            complemento: document.getElementById("profile-complement").value.trim(),
+            ponto_referencia: document.getElementById("profile-reference").value.trim()
+        }
+    };
+
+    if (!dadosAtualizados.nome) {
+        alert("Preencha o nome.");
+        return;
+    }
+
+    if (!dadosAtualizados.email) {
+        alert("Preencha o email.");
+        return;
+    }
+
+    if (!dadosAtualizados.telefone) {
+        alert("Preencha o telefone.");
+        return;
+    }
+
+    const formData = new FormData();
+
+    formData.append("nome", dadosAtualizados.nome);
+    formData.append("email", dadosAtualizados.email);
+    formData.append("telefone", dadosAtualizados.telefone);
+    formData.append("data_nascimento", dadosAtualizados.data_nascimento);
+    if (usuarioAtualEhPrestador) {
+        formData.append("profissao", dadosAtualizados.profissao);
+        formData.append("descricao", dadosAtualizados.descricao);
+    }
+    formData.append("endereco", JSON.stringify(dadosAtualizados.endereco));
+    formData.append("rua", dadosAtualizados.endereco.rua);
+    formData.append("numero", dadosAtualizados.endereco.numero);
+    formData.append("cep", dadosAtualizados.endereco.cep);
+    formData.append("bairro", dadosAtualizados.endereco.bairro);
+    formData.append("cidade", dadosAtualizados.endereco.cidade);
+    formData.append("estado", dadosAtualizados.endereco.estado);
+    formData.append("complemento", dadosAtualizados.endereco.complemento);
+    formData.append("ponto_referencia", dadosAtualizados.endereco.ponto_referencia);
+    formData.append("foto_posicao_y", String(ajusteVertical));
+    formData.append("foto_posicao_x", "50");
+
+    if (fotoSelecionada) {
+        formData.append("foto", fotoSelecionada);
+        formData.append("remover_foto", "false");
+    } else if (fotoRemovida) {
+        formData.append("remover_foto", "true");
+    }
+
+    try {
+        const resposta = await fetch("/usuario/me", {
+            method: "PUT",
+            headers: {
+                Authorization: `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        const data = await resposta.json().catch(() => ({}));
+
+        if (!resposta.ok) {
+            console.error("Erro ao atualizar conta:", resposta.status, data);
+            alert(data.erro || data.message || "Não foi possível atualizar a conta.");
+            return;
+        }
+
+        const usuarioAtualizado = data.usuario || {
+            ...JSON.parse(localStorage.getItem("usuario") || "{}"),
+            ...dadosAtualizados,
+            foto_perfil: data.foto_perfil || data.usuario?.foto_perfil || "",
+            foto_posicao_y: data.foto_posicao_y ?? ajusteVertical,
+            foto_posicao_x: data.foto_posicao_x ?? 50
+        };
+
+        localStorage.setItem("usuario", JSON.stringify(usuarioAtualizado));
+
+        fotoSelecionada = null;
+        fotoRemovida = false;
+
+        if (data.foto_perfil || data.usuario?.foto_perfil) {
+            atualizarPreviewFoto(data.foto_perfil || data.usuario?.foto_perfil);
+        } else {
+            atualizarPreviewFoto("");
+        }
+
+        alert(data.mensagem || "Dados atualizados com sucesso.");
+        setEditMode(false);
+        carregarDadosUsuario();
+    } catch (error) {
+        console.error("Erro ao salvar dados:", error);
+        alert("Erro ao conectar com o servidor.");
+    }
+});
+
+deleteAccountButton.addEventListener("click", async () => {
+    if (!token) {
+        alert("Você precisa estar logado para apagar a conta.");
+        window.location.href = "login.html";
+        return;
+    }
+
+    const confirmar = confirm("Tem certeza que deseja apagar sua conta? Esta ação não pode ser desfeita.");
+
+    if (!confirmar) {
+        return;
+    }
+
+    try {
+        const resposta = await fetch("/usuario/me", {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        });
+
+        let data = {};
+
+        try {
+            data = await resposta.json();
+        } catch (error) {
+            data = {};
+        }
+
+        if (!resposta.ok) {
+            console.error("Erro ao apagar conta:", data);
+            alert((data.erro || "Não foi possível apagar a conta.") + (data.detalhe ? "\n" + data.detalhe : ""));
+            return;
+        }
+
+        localStorage.removeItem("token");
+        localStorage.removeItem("usuario");
+        alert("Conta apagada com sucesso.");
+        window.location.href = "index.html";
+    } catch (error) {
+        console.error("Erro ao apagar conta:", error);
+        alert("Erro ao conectar com o servidor.");
+    }
+});
+
+carregarDadosUsuario();
+</script>
+
+</body>
+</html>

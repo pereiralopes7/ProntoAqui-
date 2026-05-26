@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profissionais</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<div class="btn-voltar" onclick="history.back()">←</div>
+
+<section class="pagina-servicos">
+<h1 id="titulo-servico">Profissionais disponíveis</h1>
+<div id="lista-profissionais" class="profissionais-grid"></div>
+</section>
+
+<script>
+const container = document.getElementById("lista-profissionais");
+const FOTO_PADRAO = "/img/default-user.svg";
+
+function escaparHtml(valor) {
+    return String(valor || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+async function carregarProfissionais() {
+    container.innerHTML = "<p>Carregando profissionais...</p>";
+
+    try {
+        const resposta = await fetch("/buscar-profissionais?q=");
+        const profissionais = await resposta.json().catch(() => []);
+
+        if (!resposta.ok) {
+            console.error("Erro ao carregar profissionais:", resposta.status, profissionais);
+            container.innerHTML = "<p>Não foi possível carregar os profissionais.</p>";
+            return;
+        }
+
+        renderizarProfissionais(profissionais);
+    } catch (error) {
+        console.error("Erro ao carregar profissionais:", error);
+        container.innerHTML = "<p>Erro ao conectar com o servidor.</p>";
+    }
+}
+
+function renderizarProfissionais(profissionais) {
+    if (!Array.isArray(profissionais) || profissionais.length === 0) {
+        container.innerHTML = "<p>Nenhum profissional encontrado.</p>";
+        return;
+    }
+
+    container.innerHTML = profissionais.map((profissional) => {
+        const id = profissional.id || profissional.id_usuario;
+        const nome = escaparHtml(profissional.nome || "Nome não informado");
+        const profissao = escaparHtml(profissional.profissao || "Profissão não informada");
+        const cidade = escaparHtml(profissional.cidade || "Cidade não informada");
+        const idade = profissional.idade ? `${profissional.idade} anos` : "Idade não informada";
+        const foto = escaparHtml(profissional.foto_perfil || FOTO_PADRAO);
+        const fotoPosicaoY = Number.isFinite(Number(profissional.foto_posicao_y))
+            ? Number(profissional.foto_posicao_y)
+            : 50;
+
+        return `
+        <div class="prof-card">
+            <img src="${foto}" alt="Foto de ${nome}" style="object-position: 50% ${fotoPosicaoY}%;" onerror="this.onerror=null; this.src=FOTO_PADRAO;">
+            <h3>${nome}</h3>
+            <p>${profissao}</p>
+            <p>${cidade}</p>
+            <p>${idade}</p>
+            <div class="prof-card-actions">
+                <button class="btn-amarelo" type="button" onclick="abrirPerfil(${id})">Ver perfil</button>
+                <button class="btn-secundario" type="button" onclick="abrirPerfil(${id})">Mensagem</button>
+            </div>
+        </div>
+        `;
+    }).join("");
+}
+
+function abrirPerfil(id) {
+    if (!id) {
+        console.error("ID do profissional não informado.");
+        return;
+    }
+
+    window.location.href = `/perfil?id=${id}`;
+}
+
+carregarProfissionais();
+</script>
+
+</body>
+</html>

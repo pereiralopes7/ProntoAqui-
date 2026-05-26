@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Serviços</title>
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<div class="btn-voltar" onclick="history.back()">
+⬅ Voltar
+</div>
+
+<!-- CONTEÚDO -->
+<section class="pagina-servicos">
+
+<h1>Buscar profissionais</h1>
+
+<p class="subtitulo">
+Pesquise por nome ou profissão para encontrar um profissional.
+</p>
+
+<div class="search-container servicos-search">
+    <input type="text" id="search-input" placeholder="Ex: Lucas, Pintor, informática..." autocomplete="off">
+    <div id="resultados" class="search-results"></div>
+</div>
+
+</section>
+
+<script>
+const searchInput = document.getElementById('search-input');
+const searchResults = document.getElementById('resultados');
+const FOTO_PADRAO = '/img/default-user.svg';
+const token = localStorage.getItem('token');
+let debounceTimer;
+
+mostrarMensagemInicial();
+
+searchInput.addEventListener('input', function() {
+    clearTimeout(debounceTimer);
+    const query = this.value.trim();
+    
+    if (!query) {
+        mostrarMensagemInicial();
+        return;
+    }
+    
+    debounceTimer = setTimeout(() => {
+        carregarProfissionais(query);
+    }, 300);
+});
+
+function mostrarMensagemInicial() {
+    searchResults.innerHTML = '';
+}
+
+function escaparHtml(valor) {
+    return String(valor || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+async function carregarProfissionais(query = '') {
+    if (!query.trim()) {
+        mostrarMensagemInicial();
+        return;
+    }
+
+    searchResults.innerHTML = "<p>Buscando profissionais...</p>";
+
+    try {
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const response = await fetch(`/buscar-profissionais?q=${encodeURIComponent(query)}`, { headers });
+        const results = await response.json().catch(() => []);
+        
+        if (!response.ok) {
+            console.error('Erro ao buscar profissionais:', response.status, results);
+            searchResults.innerHTML = '<p>Não foi possível carregar os profissionais.</p>';
+            return;
+        }
+        
+        displayResults(results, query);
+    } catch (error) {
+        console.error('Erro na busca:', error);
+        searchResults.innerHTML = '<p>Erro ao conectar com o servidor.</p>';
+    }
+}
+
+function displayResults(results, query) {
+    if (!results || results.length === 0) {
+        searchResults.innerHTML = '<p>Nenhum profissional encontrado.</p>';
+        return;
+    }
+    
+    searchResults.innerHTML = results.map(prof => {
+        const nome = escaparHtml(prof.nome || 'Nome não informado');
+        const profissao = escaparHtml(prof.profissao || 'Profissão não informada');
+        const cidade = escaparHtml(prof.cidade || 'Cidade não informada');
+        const idade = prof.idade ? `${prof.idade} anos` : 'Idade não informada';
+        const id = prof.id || prof.id_usuario || '';
+        const foto = escaparHtml(prof.foto_perfil || FOTO_PADRAO);
+        const fotoPosicaoY = Number.isFinite(Number(prof.foto_posicao_y))
+            ? Number(prof.foto_posicao_y)
+            : 50;
+        
+        return `
+        <div class="result-card" onclick="selecionarProfissional('${id}')">
+            <img class="profissional-foto" src="${foto}" alt="Foto de ${nome}" style="object-position: 50% ${fotoPosicaoY}%;" onerror="this.onerror=null; this.src=FOTO_PADRAO;">
+            <div class="result-info">
+                <h3>${highlightText(nome, query)}</h3>
+                <p><b>Profissão:</b> ${highlightText(profissao, query)}</p>
+                <p><b>Cidade:</b> ${highlightText(cidade, query)}</p>
+                <p><b>Idade:</b> ${idade}</p>
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+function highlightText(text, query) {
+    if (!text || !query) return text;
+    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const safeQuery = escapeRegExp(query);
+    const regex = new RegExp(`(${safeQuery})`, 'gi');
+    return text.replace(regex, '<mark>$1</mark>');
+}
+
+function selecionarProfissional(id) {
+    if (id) {
+        window.location.href = `/perfil?id=${id}`;
+    }
+}
+</script>
+
+</body>
+</html>

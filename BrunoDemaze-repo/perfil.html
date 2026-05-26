@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perfil do Profissional</title>
+
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+</head>
+
+<body>
+
+<!-- BOTÃO VOLTAR -->
+<div class="btn-voltar" onclick="history.back()">
+← Voltar
+</div>
+
+<!-- TOPO -->
+<section class="perfil-topo">
+<h1>{{ profissional.nome }}</h1>
+</section>
+
+<!-- SEÇÃO PRINCIPAL -->
+<section class="perfil-principal">
+<div class="perfil-info">
+    <h3>Informações</h3>
+    <p><strong>Profissão:</strong> {{ profissional.profissao }}</p>
+    <p><strong>Idade:</strong> {{ profissional.idade_texto }}</p>
+    <p><strong>Cidade:</strong> {{ profissional.cidade }}</p>
+</div>
+
+<div class="perfil-foto">
+    <img
+        src="{{ profissional.imagem }}"
+        alt="Foto do profissional"
+        style="object-fit: cover; object-position: 50% {{ profissional.foto_posicao_y }}%;"
+        onerror="this.onerror=null; this.src='/img/default-user.svg';"
+    >
+</div>
+</section>
+
+<!-- DESCRIÇÃO -->
+<section class="perfil-card">
+<h3>Descrição do serviço</h3>
+<p>{{ profissional.descricao }}</p>
+</section>
+
+<section class="perfil-card" id="perfil-proprio-card" hidden>
+<h3>Este é o seu perfil profissional.</h3>
+<p>Os consumidores verão estas informações ao buscar pelo seu serviço.</p>
+<button class="btn-amarelo" type="button" onclick="window.location.href='perfil-config.html'">Editar perfil profissional</button>
+</section>
+
+<!-- CHAT -->
+<section class="perfil-card" id="chat-card">
+<h3>Chat online entre o contratante e o prestador</h3>
+<div class="chat-simulado">
+    <div class="chat-messages" id="chat-messages"></div>
+    <textarea id="mensagem-input" placeholder="Digite sua mensagem..."></textarea>
+    <button id="botao-enviar" type="button" disabled>Enviar</button>
+</div>
+</section>
+
+<section class="perfil-card" id="servico-status-card">
+<h3>Finalização do serviço</h3>
+<p id="servico-status-texto">Aguardando o prestador liberar a finalização do serviço.</p>
+<button class="btn-amarelo" id="botao-liberar-finalizacao" type="button" hidden>Liberar finalização do serviço</button>
+</section>
+
+<!-- RODAPÉ -->
+<section class="perfil-rodape" id="finalizacao-rodape" hidden>
+<button class="btn-amarelo finalizacao-botao" id="botao-finalizar-servico" type="button" disabled>Finalizar serviço</button>
+</section>
+
+<script>
+const token = localStorage.getItem('token')
+const profissional = {{ profissional | tojson | safe }}
+const chatMessages = document.getElementById('chat-messages')
+const messageInput = document.getElementById('mensagem-input')
+const sendButton = document.getElementById('botao-enviar')
+const perfilProprioCard = document.getElementById('perfil-proprio-card')
+const chatCard = document.getElementById('chat-card')
+const servicoStatusCard = document.getElementById('servico-status-card')
+const servicoStatusTexto = document.getElementById('servico-status-texto')
+const botaoLiberarFinalizacao = document.getElementById('botao-liberar-finalizacao')
+const finalizacaoRodape = document.getElementById('finalizacao-rodape')
+const botaoFinalizarServico = document.getElementById('botao-finalizar-servico')
+const paramsPerfil = new URLSearchParams(window.location.search)
+const contratanteIdParam = Number(paramsPerfil.get('contratante_id') || 0)
+
+let usuarioLogado = null
+let idRemetente = null
+let idDestinatarioChat = null
+let idConversa = null
+let conversaValida = false
+let socket = null
+let statusServicoAtual = null
+
+function gerarIdConversa(a, b) {
+    const ids = [Number(a), Number(b)].sort((x, y) => x - y)
+    return `chat_${ids[0]}_${ids[1]}`
+}
+
+function escaparHtml(valor) {
+    return String(valor || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;')
+}
+
+function formatarHora(dataIso) {
+    if (!dataIso) return ''
+
+    const data = new Date(dataIso)
+
+    if (Number.isNaN(data.getTime())) {
+        return ''
+    }
+
+    return data.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit'
+    })
+}
+
+function addMessage(tipo, texto, dataEnvio = '') {
+    const item = document.createElement('div')
+    item.className = `chat-message chat-message-${tipo}`
+
+    const textoEl = document.createElement('div')
+    textoEl.className = 'chat-message-text'
+    textoEl.innerHTML = escaparHtml(texto)
+    item.appendChild(textoEl)
+
+    const hora = formatarHora(dataEnvio)
+
+    if (hora) {
+        const horaEl = document.createElement('span')
+        horaEl.className = 'chat-message-time'
+        horaEl.textContent = hora
+        item.appendChild(horaEl)
+    }
+
+    chatMessages.appendChild(item)
+    chatMessages.scrollTop = chatMessages.scrollHeight
+}
+
+function bloquearChat(mensagem) {
+    conversaValida = false
+    messageInput.disabled = true
+    sendButton.disabled = true
+    chatMessages.innerHTML = ''
+    addMessage('system', mensagem)
+}
+
+function ocultarFinalizacao(mensagem = '') {
+    servicoStatusCard.hidden = false
+    servicoStatusTexto.textContent = mensagem || 'A finalização do serviço será liberada pelo prestador após o combinado pelo chat.'
+    botaoLiberarFinalizacao.hidden = true
+    finalizacaoRodape.hidden = true
+}
+
+function usuarioEhConsumidor(usuario) {
+    return ['contratante', 'consumidor'].includes(usuario?.tipo_usuario)
+}
+
+function usuarioEhPrestador(usuario) {
+    return ['contratado', 'prestador'].includes(usuario?.tipo_usuario)
+}
+
+function exibirPerfilProprioProfissional() {
+    perfilProprioCard.hidden = false
+    chatCard.hidden = true
+    servicoStatusCard.hidden = true
+    finalizacaoRodape.hidden = true
+    conversaValida = false
+    messageInput.disabled = true
+    sendButton.disabled = true
+}
+
+async function carregarUsuarioLogado() {
+    if (!token) {
+        bloquearChat('Faça login para enviar mensagens.')
+        return null
+    }
+
+    try {
+        const resposta = await fetch('/usuario/me', {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })
+
+        const data = await resposta.json().catch(() => ({}))
+
+        if (!resposta.ok) {
+            console.error('Erro ao carregar usuário logado:', resposta.status, data)
+            bloquearChat('Faça login para enviar mensagens.')
+            return null
+        }
+
+        return data
+    } catch (error) {
+        console.error('Erro ao carregar usuário logado:', error)
+        bloquearChat('Não foi possível conectar ao servidor para iniciar o chat.')
+        return null
+    }
+}
+
+async function carregarHistorico() {
+    try {
+        const response = await fetch(`/chat/historico/${idDestinatarioChat}`, {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })
+
+        const data = await response.json().catch(() => ({}))
+
+        if (!response.ok) {
+            console.error('Erro ao carregar histórico de chat:', response.status, data)
+            addMessage('system', data.erro || 'Não foi possível carregar o histórico do chat.')
+            return
+        }
+
+        chatMessages.innerHTML = ''
+
+        for (const msg of data.mensagens || []) {
+            const tipo = Number(msg.remetente_id) === Number(idRemetente) ? 'sent' : 'received'
+            addMessage(tipo, msg.texto, msg.data_envio)
+        }
+    } catch (error) {
+        console.error('Erro ao carregar histórico de chat:', error)
+        addMessage('system', 'Não foi possível carregar o histórico do chat.')
+    }
+}
+
+function conectarSocket() {
+    socket = io()
+
+    socket.on('connect', () => {
+        socket.emit('join_chat', {
+            conversa_id: idConversa,
+            remetente_id: idRemetente,
+            destinatario_id: idDestinatarioChat
+        })
+    })
+
+    socket.on('receive_message', receberMensagem)
+
+    socket.on('erro_chat', (data) => {
+        console.error('Erro no chat:', data)
+        addMessage('system', data.erro || 'Não foi possível enviar a mensagem.')
+    })
+}
+
+function receberMensagem(data) {
+    if (!data || data.conversa_id !== idConversa) return
+
+    const tipo = Number(data.remetente_id) === Number(idRemetente) ? 'sent' : 'received'
+    addMessage(tipo, data.texto, data.data_envio || data.data)
+}
+
+function aplicarStatusServico(status) {
+    statusServicoAtual = status
+    botaoLiberarFinalizacao.hidden = true
+    finalizacaoRodape.hidden = true
+    botaoFinalizarServico.disabled = true
+    servicoStatusCard.hidden = false
+
+    if (!status) {
+        servicoStatusTexto.textContent = 'A finalização do serviço será liberada pelo prestador após o combinado pelo chat.'
+        return
+    }
+
+    if (status.status === 'finalizado') {
+        servicoStatusTexto.textContent = 'Serviço finalizado com sucesso.'
+        return
+    }
+
+    if (status.finalizacao_liberada) {
+        servicoStatusTexto.textContent = usuarioEhPrestador(usuarioLogado)
+            ? 'Finalização liberada para o consumidor.'
+            : 'Finalização liberada pelo prestador.'
+
+        if (usuarioEhConsumidor(usuarioLogado)) {
+            finalizacaoRodape.hidden = false
+            botaoFinalizarServico.disabled = !status.pode_finalizar
+        }
+
+        return
+    }
+
+    servicoStatusTexto.textContent = usuarioEhPrestador(usuarioLogado)
+        ? 'Negociação em andamento.'
+        : 'Aguardando o prestador liberar a finalização do serviço.'
+
+    if (usuarioEhConsumidor(usuarioLogado)) {
+        finalizacaoRodape.hidden = false
+        botaoFinalizarServico.disabled = true
+    }
+
+    if (status.pode_liberar) {
+        botaoLiberarFinalizacao.hidden = false
+    }
+}
+
+async function carregarStatusServico() {
+    if (!usuarioLogado || !token) {
+        ocultarFinalizacao()
+        return
+    }
+
+    if (idRemetente === Number(profissional.id) && !contratanteIdParam) {
+        servicoStatusCard.hidden = true
+        finalizacaoRodape.hidden = true
+        return
+    }
+
+    const query = contratanteIdParam ? `?contratante_id=${contratanteIdParam}` : ''
+
+    try {
+        const response = await fetch(`/chat/status-servico/${profissional.id}${query}`, {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })
+        const data = await response.json().catch(() => ({}))
+
+        if (!response.ok) {
+            console.error('Erro ao carregar status do serviço:', response.status, data)
+            ocultarFinalizacao(data.erro || 'Não foi possível carregar o status do serviço.')
+            return
+        }
+
+        aplicarStatusServico(data)
+    } catch (error) {
+        console.error('Erro ao carregar status do serviço:', error)
+        ocultarFinalizacao('Não foi possível carregar o status do serviço.')
+    }
+}
+
+async function iniciarChat() {
+    usuarioLogado = await carregarUsuarioLogado()
+
+    if (!usuarioLogado) {
+        ocultarFinalizacao()
+        return
+    }
+
+    idRemetente = Number(usuarioLogado.id)
+    idDestinatarioChat = Number(profissional.id)
+
+    if (idRemetente === Number(profissional.id) && contratanteIdParam) {
+        idDestinatarioChat = contratanteIdParam
+    }
+
+    if (idRemetente === idDestinatarioChat) {
+        if (usuarioEhPrestador(usuarioLogado)) {
+            exibirPerfilProprioProfissional()
+        } else {
+            bloquearChat('Você não pode enviar mensagem para si mesmo.')
+            servicoStatusCard.hidden = true
+            finalizacaoRodape.hidden = true
+        }
+        return
+    }
+
+    if (usuarioEhPrestador(usuarioLogado) && idRemetente !== Number(profissional.id) && !contratanteIdParam) {
+        ocultarFinalizacao('Conversa entre prestadores. O fluxo de contratação não está disponível aqui.')
+    }
+
+    conversaValida = true
+    idConversa = gerarIdConversa(idRemetente, idDestinatarioChat)
+    messageInput.disabled = false
+    sendButton.disabled = false
+
+    await carregarHistorico()
+    conectarSocket()
+
+    if (usuarioEhPrestador(usuarioLogado) && idRemetente !== Number(profissional.id) && !contratanteIdParam) {
+        return
+    }
+
+    await carregarStatusServico()
+}
+
+sendButton.addEventListener('click', () => {
+    if (!conversaValida) {
+        return
+    }
+
+    const texto = messageInput.value.trim()
+
+    if (!texto) {
+        addMessage('system', 'Digite uma mensagem antes de enviar.')
+        return
+    }
+
+    socket.emit('send_message', {
+        conversa_id: idConversa,
+        id_conversa: idConversa,
+        id_remetente: idRemetente,
+        id_destinatario: idDestinatarioChat,
+        texto: texto
+    })
+
+    messageInput.value = ''
+})
+
+messageInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        sendButton.click()
+    }
+})
+
+iniciarChat()
+
+botaoLiberarFinalizacao.addEventListener('click', async () => {
+    if (!contratanteIdParam) {
+        servicoStatusTexto.textContent = 'Informe o contratante para liberar a finalização.'
+        return
+    }
+
+    try {
+        const response = await fetch('/chat/liberar-finalizacao', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                contratante_id: contratanteIdParam
+            })
+        })
+        const data = await response.json().catch(() => ({}))
+
+        if (!response.ok) {
+            console.error('Erro ao liberar finalização:', response.status, data)
+            servicoStatusTexto.textContent = data.erro || 'Não foi possível liberar a finalização.'
+            return
+        }
+
+        aplicarStatusServico(data.servico)
+    } catch (error) {
+        console.error('Erro ao liberar finalização:', error)
+        servicoStatusTexto.textContent = 'Não foi possível liberar a finalização.'
+    }
+})
+
+botaoFinalizarServico.addEventListener('click', async () => {
+    if (botaoFinalizarServico.disabled) {
+        return
+    }
+
+    try {
+        const response = await fetch('/chat/finalizar-servico', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                prestador_id: profissional.id
+            })
+        })
+        const data = await response.json().catch(() => ({}))
+
+        if (!response.ok) {
+            console.error('Erro ao finalizar serviço:', response.status, data)
+            servicoStatusTexto.textContent = data.erro || 'Não foi possível finalizar o serviço.'
+            return
+        }
+
+        aplicarStatusServico(data.servico)
+    } catch (error) {
+        console.error('Erro ao finalizar serviço:', error)
+        servicoStatusTexto.textContent = 'Não foi possível finalizar o serviço.'
+    }
+})
+</script>
+
+</body>
+</html>

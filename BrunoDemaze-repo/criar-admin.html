@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Criar Admin</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body class="auth-page">
+
+<section class="auth-container">
+
+<div class="auth-box">
+
+<h2>Criar Administrador</h2>
+
+<div id="msg-sucesso" style="padding: 15px; background-color: #d4edda; color: #155724; border-radius: 5px; margin-bottom: 20px; display: none;">
+✓ Admin criado com sucesso!
+</div>
+
+<div id="msg-erro" style="padding: 15px; background-color: #f8d7da; color: #721c24; border-radius: 5px; margin-bottom: 20px; display: none;">
+✗ Erro ao criar admin
+</div>
+
+<form id="form-admin" onsubmit="criarAdmin(event)">
+<input type="text" id="nome-admin" placeholder="Nome do administrador" required>
+<input type="email" id="email-admin" placeholder="Email do administrador" required>
+<input type="password" id="senha-admin" placeholder="Senha" required>
+
+<button type="submit" class="btn-amarelo">Criar Admin</button>
+</form>
+
+<p style="text-align: center; margin-top: 20px; color: rgba(255,255,255,0.8);">
+Esta página só pode ser usada uma vez para criar o primeiro administrador.
+</p>
+
+</div>
+
+</section>
+
+<script>
+async function criarAdmin(event) {
+  event.preventDefault()
+
+  const nome = document.getElementById('nome-admin').value
+  const email = document.getElementById('email-admin').value
+  const senha = document.getElementById('senha-admin').value
+
+  try {
+    const response = await fetch('/admin/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ nome, email, senha })
+    })
+
+    const data = await response.json()
+
+    if (response.ok) {
+      document.getElementById('msg-sucesso').style.display = 'block'
+      document.getElementById('msg-erro').style.display = 'none'
+      document.getElementById('form-admin').reset()
+
+      setTimeout(() => {
+        window.location.href = 'login.html'
+      }, 3000)
+    } else {
+      document.getElementById('msg-erro').innerText = '✗ ' + (data.erro || 'Erro desconhecido')
+      document.getElementById('msg-erro').style.display = 'block'
+      document.getElementById('msg-sucesso').style.display = 'none'
+    }
+  } catch (error) {
+    console.error('Erro:', error)
+    document.getElementById('msg-erro').innerText = '✗ Erro de conexão'
+    document.getElementById('msg-erro').style.display = 'block'
+    document.getElementById('msg-sucesso').style.display = 'none'
+  }
+}
+</script>
+
+</body>
+</html>

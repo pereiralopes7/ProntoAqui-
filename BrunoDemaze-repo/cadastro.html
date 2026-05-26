@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastrar</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<div class="btn-voltar" onclick="history.back()">
+Voltar
+</div>
+
+<section class="auth-container">
+<form class="auth-box" id="cadastro-form" novalidate>
+<h2>Cadastrar</h2>
+
+<input id="cadastro-nome" type="text" placeholder="Nome" required>
+<input id="cadastro-email" type="email" placeholder="Email" required>
+<input id="cadastro-data-nascimento" type="date" required>
+
+<button type="button" id="gerar-codigo">Gerar código de verificação</button>
+<input id="codigo-verificacao" type="text" inputmode="numeric" maxlength="6" placeholder="Digite o código de verificação">
+
+<input id="cadastro-senha" type="password" placeholder="Senha" required>
+
+<select id="cadastro-tipo" required>
+    <option value="">Cadastrar como</option>
+    <option value="contratante">Consumidor</option>
+    <option value="contratado">Prestador de serviço</option>
+</select>
+
+<input id="cadastro-telefone" type="tel" placeholder="Telefone" required>
+<input id="cadastro-cep" type="text" placeholder="CEP" required>
+<input id="cadastro-rua" type="text" placeholder="Rua" required>
+<input id="cadastro-numero" type="text" placeholder="Número" required>
+<input id="cadastro-bairro" type="text" placeholder="Bairro" required>
+<input id="cadastro-cidade" type="text" placeholder="Cidade" required>
+<input id="cadastro-estado" type="text" placeholder="Estado" maxlength="2" required>
+<input id="cadastro-complemento" type="text" placeholder="Complemento">
+<input id="cadastro-ponto-referencia" type="text" placeholder="Ponto de referência">
+
+<div id="campos-trabalhador" style="display: none;">
+    <input id="cadastro-profissao" type="text" placeholder="Profissão">
+    <textarea id="cadastro-descricao" placeholder="Descrição sobre você" style="resize: vertical; min-height: 80px;"></textarea>
+    <p style="font-size: 0.85em; color: #666;">Foto de perfil obrigatória para prestadores.</p>
+</div>
+
+<div class="foto-cadastro-box">
+    <label for="cadastro-foto" class="foto-cadastro-label">
+        <div class="foto-preview-area">
+            <img id="preview-foto" src="" alt="Prévia da foto" style="display: none;">
+            <span id="foto-placeholder">+</span>
+        </div>
+
+        <span id="texto-foto">Adicionar foto de perfil</span>
+    </label>
+
+    <input id="cadastro-foto" type="file" accept="image/png, image/jpeg, image/jpg" hidden>
+
+    <div id="ajustes-foto" class="ajustes-foto" style="display: none;">
+        <label>
+            Ajustar vertical
+            <input id="foto-pos-y" type="range" min="0" max="100" value="50">
+        </label>
+    </div>
+</div>
+
+<button class="btn-amarelo" type="submit">Cadastrar</button>
+
+<p class="auth-link">
+Já tem uma conta? <a href="login.html">Entrar</a>
+</p>
+</form>
+</section>
+
+<div class="status-popup" id="status-popup"></div>
+
+<script>
+const cadastroForm = document.getElementById("cadastro-form");
+const statusPopup = document.getElementById("status-popup");
+const tipoSelect = document.getElementById("cadastro-tipo");
+const camposTrabalhador = document.getElementById("campos-trabalhador");
+const gerarCodigoButton = document.getElementById("gerar-codigo");
+
+const fotoInput = document.getElementById("cadastro-foto");
+const previewFoto = document.getElementById("preview-foto");
+const textoFoto = document.getElementById("texto-foto");
+const fotoPlaceholder = document.getElementById("foto-placeholder");
+const ajustesFoto = document.getElementById("ajustes-foto");
+const fotoPosY = document.getElementById("foto-pos-y");
+const cepInput = document.getElementById("cadastro-cep");
+
+let emailVerificado = false;
+let ultimoCodigoValidado = "";
+
+function showPopup(message, isError = false) {
+    statusPopup.textContent = message;
+    statusPopup.classList.toggle("is-error", isError);
+    statusPopup.classList.add("is-visible");
+
+    clearTimeout(showPopup.timeoutId);
+    showPopup.timeoutId = setTimeout(() => {
+        statusPopup.classList.remove("is-visible");
+    }, 4500);
+}
+
+function bloquearCadastro(motivo) {
+    showPopup(motivo, true);
+    return false;
+}
+
+async function buscarCep(cep) {
+    cep = String(cep || "").replace(/\D/g, "");
+
+    if (cep.length !== 8) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await response.json();
+
+        if (!response.ok || data.erro) {
+            showPopup("CEP não encontrado.", true);
+            return;
+        }
+
+        document.getElementById("cadastro-rua").value = data.logradouro || "";
+        document.getElementById("cadastro-bairro").value = data.bairro || "";
+        document.getElementById("cadastro-cidade").value = data.localidade || "";
+        document.getElementById("cadastro-estado").value = data.uf || "";
+    } catch (error) {
+        console.error("Erro ao buscar CEP:", error);
+        showPopup("Não foi possível buscar o CEP agora.", true);
+    }
+}
+
+function mostrarCamposPrestador() {
+    const prestador = tipoSelect.value === "contratado";
+    camposTrabalhador.style.display = prestador ? "block" : "none";
+}
+
+function aplicarPosicaoFoto() {
+    previewFoto.style.objectFit = "cover";
+    previewFoto.style.objectPosition = `50% ${fotoPosY.value}%`;
+}
+
+function limparPreviewFoto() {
+    fotoInput.value = "";
+    previewFoto.removeAttribute("src");
+    previewFoto.style.display = "none";
+    previewFoto.style.objectPosition = "50% 50%";
+    fotoPosY.value = 50;
+    fotoPlaceholder.style.display = "flex";
+    ajustesFoto.style.display = "none";
+    textoFoto.textContent = "Adicionar foto de perfil";
+}
+
+function validarFoto(foto) {
+    const tiposPermitidos = ["image/jpeg", "image/png", "image/jpg"];
+
+    if (!tiposPermitidos.includes(foto.type)) {
+        return "Envie uma foto em formato JPG ou PNG.";
+    }
+
+    if (foto.size > 5 * 1024 * 1024) {
+        return "A foto deve ter no máximo 5MB.";
+    }
+
+    return "";
+}
+
+tipoSelect.addEventListener("change", mostrarCamposPrestador);
+cepInput.addEventListener("blur", () => buscarCep(cepInput.value));
+cepInput.addEventListener("input", () => {
+    const cepLimpo = cepInput.value.replace(/\D/g, "");
+    if (cepLimpo.length === 8) {
+        buscarCep(cepLimpo);
+    }
+});
+
+fotoInput.addEventListener("change", () => {
+    const foto = fotoInput.files[0];
+
+    if (!foto) {
+        limparPreviewFoto();
+        return;
+    }
+
+    const erroFoto = validarFoto(foto);
+
+    if (erroFoto) {
+        showPopup(erroFoto, true);
+        limparPreviewFoto();
+        return;
+    }
+
+    previewFoto.src = URL.createObjectURL(foto);
+    previewFoto.style.display = "block";
+    fotoPlaceholder.style.display = "none";
+    ajustesFoto.style.display = "flex";
+    textoFoto.textContent = "Trocar foto";
+    fotoPosY.value = 50;
+    aplicarPosicaoFoto();
+});
+
+fotoPosY.addEventListener("input", aplicarPosicaoFoto);
+
+document.getElementById("cadastro-email").addEventListener("input", () => {
+    emailVerificado = false;
+    ultimoCodigoValidado = "";
+});
+
+document.getElementById("codigo-verificacao").addEventListener("input", verificarCodigoAutomaticamente);
+gerarCodigoButton.addEventListener("click", enviarCodigoEmail);
+
+async function enviarCodigoEmail() {
+    const email = document.getElementById("cadastro-email").value.trim();
+
+    if (!email) {
+        bloquearCadastro("Informe o email antes de gerar o código.");
+        return;
+    }
+
+    try {
+        const resposta = await fetch("/auth/send-code", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ email })
+        });
+
+        const data = await resposta.json();
+
+        if (!resposta.ok) {
+            showPopup(data.erro || "Erro ao gerar código.", true);
+            return;
+        }
+
+        emailVerificado = false;
+        ultimoCodigoValidado = "";
+
+        if (data.codigo_teste) {
+            alert("Código de verificação para teste: " + data.codigo_teste);
+            showPopup("Código gerado. Cole no campo de verificação.");
+        } else {
+            showPopup("Código enviado para o email.");
+        }
+    } catch (error) {
+        console.error("Erro ao gerar código:", error);
+        showPopup("Erro ao conectar com o servidor.", true);
+    }
+}
+
+async function verificarCodigoAutomaticamente() {
+    const email = document.getElementById("cadastro-email").value.trim();
+    const codigo = document.getElementById("codigo-verificacao").value.trim();
+
+    if (!email || codigo.length < 6 || codigo === ultimoCodigoValidado) {
+        if (codigo.length < 6) {
+            emailVerificado = false;
+        }
+        return;
+    }
+
+    try {
+        const resposta = await fetch("/auth/verify-code", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ email, codigo })
+        });
+
+        const data = await resposta.json();
+
+        if (resposta.ok) {
+            emailVerificado = true;
+            ultimoCodigoValidado = codigo;
+            showPopup("Código verificado com sucesso.");
+        } else {
+            emailVerificado = false;
+            ultimoCodigoValidado = "";
+            showPopup(data.erro || "Código inválido.", true);
+        }
+    } catch (error) {
+        emailVerificado = false;
+        console.error("Erro ao verificar código:", error);
+        showPopup("Erro ao verificar código.", true);
+    }
+}
+
+function validarCamposCadastro() {
+    const foto = fotoInput.files[0];
+    const nome = document.getElementById("cadastro-nome").value.trim();
+    const email = document.getElementById("cadastro-email").value.trim();
+    const codigo = document.getElementById("codigo-verificacao").value.trim();
+    const senha = document.getElementById("cadastro-senha").value.trim();
+    const dataNascimento = document.getElementById("cadastro-data-nascimento").value;
+    const tipoUsuario = tipoSelect.value;
+    const telefone = document.getElementById("cadastro-telefone").value.trim();
+    const cep = document.getElementById("cadastro-cep").value.trim();
+    const rua = document.getElementById("cadastro-rua").value.trim();
+    const numero = document.getElementById("cadastro-numero").value.trim();
+    const bairro = document.getElementById("cadastro-bairro").value.trim();
+    const cidade = document.getElementById("cadastro-cidade").value.trim();
+    const estado = document.getElementById("cadastro-estado").value.trim();
+    const profissao = document.getElementById("cadastro-profissao").value.trim();
+    const descricao = document.getElementById("cadastro-descricao").value.trim();
+
+    if (!nome) return bloquearCadastro("Preencha o nome.");
+    if (!email) return bloquearCadastro("Preencha o email.");
+    if (!email.includes("@") || !email.includes(".")) return bloquearCadastro("Informe um email válido.");
+    if (!dataNascimento) return bloquearCadastro("Informe a data de nascimento.");
+    if (new Date(dataNascimento) > new Date()) return bloquearCadastro("A data de nascimento não pode ser futura.");
+    if (!codigo) return bloquearCadastro("Digite o código de verificação.");
+    if (!senha) return bloquearCadastro("Preencha a senha.");
+    if (senha.length < 6) return bloquearCadastro("A senha deve ter pelo menos 6 caracteres.");
+    if (!tipoUsuario) return bloquearCadastro("Selecione se o cadastro é consumidor ou prestador.");
+    if (!telefone) return bloquearCadastro("Preencha o telefone.");
+    if (!cep) return bloquearCadastro("Preencha o CEP.");
+    if (cep.replace(/\D/g, "").length !== 8) return bloquearCadastro("Informe um CEP válido com 8 números.");
+    if (!rua) return bloquearCadastro("Preencha a rua.");
+    if (!numero) return bloquearCadastro("Preencha o número.");
+    if (!bairro) return bloquearCadastro("Preencha o bairro.");
+    if (!cidade) return bloquearCadastro("Preencha a cidade.");
+    if (!estado) return bloquearCadastro("Preencha o estado.");
+
+    if (foto) {
+        const erroFoto = validarFoto(foto);
+        if (erroFoto) return bloquearCadastro(erroFoto);
+    }
+
+    if (tipoUsuario === "contratado") {
+        if (!profissao) return bloquearCadastro("Preencha a profissão do prestador.");
+        if (!descricao) return bloquearCadastro("Preencha a descrição do prestador.");
+        if (!foto) return bloquearCadastro("Foto de perfil obrigatória para prestadores.");
+    }
+
+    return true;
+}
+
+cadastroForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!validarCamposCadastro()) {
+        return;
+    }
+
+    const email = document.getElementById("cadastro-email").value.trim();
+    const codigo = document.getElementById("codigo-verificacao").value.trim();
+
+    if (!emailVerificado) {
+        try {
+            const respostaCodigo = await fetch("/auth/verify-code", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ email, codigo })
+            });
+
+            const dataCodigo = await respostaCodigo.json();
+
+            if (!respostaCodigo.ok) {
+                showPopup(dataCodigo.erro || "Código inválido.", true);
+                return;
+            }
+
+            emailVerificado = true;
+        } catch (error) {
+            console.error("Erro ao verificar código:", error);
+            showPopup("Erro ao verificar código.", true);
+            return;
+        }
+    }
+
+    const endereco = {
+        rua: document.getElementById("cadastro-rua").value.trim(),
+        numero: document.getElementById("cadastro-numero").value.trim(),
+        cep: document.getElementById("cadastro-cep").value.trim(),
+        bairro: document.getElementById("cadastro-bairro").value.trim(),
+        cidade: document.getElementById("cadastro-cidade").value.trim(),
+        estado: document.getElementById("cadastro-estado").value.trim().toUpperCase(),
+        complemento: document.getElementById("cadastro-complemento").value.trim(),
+        ponto_referencia: document.getElementById("cadastro-ponto-referencia").value.trim()
+    };
+
+    const formData = new FormData();
+    formData.append("nome", document.getElementById("cadastro-nome").value.trim());
+    formData.append("email", email);
+    formData.append("data_nascimento", document.getElementById("cadastro-data-nascimento").value);
+    formData.append("telefone", document.getElementById("cadastro-telefone").value.trim());
+    formData.append("tipo", tipoSelect.value);
+    formData.append("profissao", document.getElementById("cadastro-profissao").value.trim());
+    formData.append("descricao", document.getElementById("cadastro-descricao").value.trim());
+    formData.append("senha", document.getElementById("cadastro-senha").value);
+    formData.append("endereco", JSON.stringify(endereco));
+    formData.append("foto_posicao_y", fotoPosY.value);
+
+    if (fotoInput.files[0]) {
+        formData.append("foto", fotoInput.files[0]);
+    }
+
+    try {
+        const resposta = await fetch("/auth/register", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await resposta.json();
+
+        if (!resposta.ok) {
+            showPopup(data.erro || "Não foi possível criar sua conta.", true);
+            return;
+        }
+
+        showPopup("Cadastro realizado com sucesso!");
+
+        setTimeout(() => {
+            window.location.href = "login.html";
+        }, 900);
+    } catch (error) {
+        console.error("Erro ao cadastrar:", error);
+        showPopup("Erro ao conectar com o servidor.", true);
+    }
+});
+
+mostrarCamposPrestador();
+</script>
+
+</body>
+</html>

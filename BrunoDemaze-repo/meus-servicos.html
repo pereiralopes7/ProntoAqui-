@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meus Serviços</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+
+<body>
+
+<div class="btn-voltar" onclick="history.back()">← Voltar</div>
+
+<section class="pagina-servicos">
+<h1 id="titulo-servicos">Meus serviços contratados</h1>
+<p class="subtitulo" id="subtitulo-servicos">Acompanhe os serviços que você contratou.</p>
+
+<div id="lista-servicos" class="lista-servicos"></div>
+
+<section class="perfil-card" id="conversa-card" hidden>
+    <h3 id="conversa-titulo">Conversa</h3>
+    <div class="chat-simulado">
+        <div class="chat-messages" id="chat-messages"></div>
+        <textarea id="mensagem-input" placeholder="Digite sua mensagem..." disabled></textarea>
+        <button id="botao-enviar" type="button" disabled>Enviar</button>
+    </div>
+</section>
+
+<section class="perfil-card" id="status-servico-card" hidden>
+    <h3>Status do serviço</h3>
+    <p id="status-servico-texto">Negociação em andamento.</p>
+    <button class="btn-amarelo" id="botao-liberar-finalizacao" type="button" hidden>Liberar finalização do serviço</button>
+</section>
+</section>
+
+<script>
+const token = localStorage.getItem('token')
+
+const tituloServicos = document.getElementById('titulo-servicos')
+const subtituloServicos = document.getElementById('subtitulo-servicos')
+const container = document.getElementById('lista-servicos')
+const conversaCard = document.getElementById('conversa-card')
+const conversaTitulo = document.getElementById('conversa-titulo')
+const chatMessages = document.getElementById('chat-messages')
+const messageInput = document.getElementById('mensagem-input')
+const sendButton = document.getElementById('botao-enviar')
+const statusCard = document.getElementById('status-servico-card')
+const statusTexto = document.getElementById('status-servico-texto')
+const botaoLiberar = document.getElementById('botao-liberar-finalizacao')
+
+let usuarioLogado = null
+let consumidorSelecionado = null
+let solicitacoesAtuais = []
+let idConversa = null
+let socket = null
+let usuarioPrestador = false
+const FOTO_PADRAO = '/img/default-user.svg'
+
+function escaparHtml(valor) {
+    return String(valor || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;')
+}
+
+function formatarData(dataIso) {
+    if (!dataIso) return ''
+    const data = new Date(dataIso)
+    if (Number.isNaN(data.getTime())) return ''
+    return data.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    })
+}
+
+function gerarIdConversa(a, b) {
+    const ids = [Number(a), Number(b)].sort((x, y) => x - y)
+    return `chat_${ids[0]}_${ids[1]}`
+}
+
+function textoStatus(status) {
+    if (status === 'finalizacao_liberada') {
+        return usuarioPrestador ? 'Finalização liberada para o consumidor.' : 'Finalização liberada pelo prestador.'
+    }
+    if (status === 'finalizado') return 'Serviço finalizado com sucesso.'
+    return 'Negociação em andamento.'
+}
+
+function addMessage(tipo, texto, dataEnvio = '') {
+    const item = document.createElement('div')
+    item.className = `chat-message chat-message-${tipo}`
+    item.innerHTML = `
+        <div class="chat-message-text">${escaparHtml(texto)}</div>
+        ${dataEnvio ? `<span class="chat-message-time">${formatarData(dataEnvio)}</span>` : ''}
+    `
+    chatMessages.appendChild(item)
+    chatMessages.scrollTop = chatMessages.scrollHeight
+}
+
+async function carregarUsuarioLogado() {
+    if (!token) {
+        window.location.href = 'login.html'
+        return null
+    }
+
+    const response = await fetch('/usuario/me', {
+        headers: { Authorization: `Bearer ${token}` }
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+        window.location.href = 'login.html'
+        return null
+    }
+
+    return data
+}
+
+async function carregarSolicitacoes() {
+    if (usuarioPrestador) {
+        tituloServicos.textContent = 'Solicitações em andamento'
+        subtituloServicos.textContent = 'Acompanhe consumidores interessados no seu serviço.'
+    } else {
+        tituloServicos.textContent = 'Contatos'
+        subtituloServicos.textContent = 'Acompanhe os prestadores com quem você já conversou.'
+    }
+
+    container.innerHTML = '<p>Carregando solicitações...</p>'
+
+    try {
+        const response = await fetch('/chat/minhas-solicitacoes', {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+        const data = await response.json().catch(() => ({}))
+
+        if (!response.ok) {
+            console.error('Erro ao carregar solicitações:', response.status, data)
+            container.innerHTML = `<p>${escaparHtml(data.erro || 'Não foi possível carregar as solicitações.')}</p>`
+            return
+        }
+
+        const solicitacoes = data.solicitacoes || []
+        solicitacoesAtuais = solicitacoes
+
+        if (!solicitacoes.length) {
+            container.innerHTML = usuarioPrestador
+                ? '<p>Nenhuma solicitação em andamento ainda.</p>'
+                : '<p>Você ainda não entrou em contato com nenhum prestador.</p>'
+            return
+        }
+
+        container.innerHTML = solicitacoes.map((solicitacao) => `
+            <div class="servico-item">
+                <img
+                    class="profissional-foto"
+                    src="${escaparHtml(solicitacao.foto_perfil || FOTO_PADRAO)}"
+                    alt="Foto de ${escaparHtml(solicitacao.outro_usuario_nome)}"
+                    style="object-position: 50% ${Number(solicitacao.foto_posicao_y || 50)}%;"
+                    onerror="this.onerror=null; this.src=FOTO_PADRAO;"
+                >
+                <h3>${escaparHtml(solicitacao.outro_usuario_nome)}</h3>
+                ${solicitacao.profissao ? `<p>Profissão: ${escaparHtml(solicitacao.profissao)}</p>` : ''}
+                <p>Última mensagem: "${escaparHtml(solicitacao.ultima_mensagem)}"</p>
+                <p>Status: ${textoStatus(solicitacao.status_servico)}</p>
+                <p>${formatarData(solicitacao.data_ultima_mensagem)}</p>
+                <button class="btn-amarelo ${usuarioPrestador ? 'abrir-conversa-btn' : 'abrir-perfil-btn'}" type="button" data-outro-id="${solicitacao.outro_usuario_id}">Abrir conversa</button>
+            </div>
+        `).join('')
+    } catch (error) {
+        console.error('Erro ao carregar solicitações:', error)
+        container.innerHTML = '<p>Erro ao conectar com o servidor.</p>'
+    }
+}
+
+async function abrirConversa(consumidorId, consumidorNome) {
+    consumidorSelecionado = Number(consumidorId)
+    idConversa = gerarIdConversa(usuarioLogado.id, consumidorSelecionado)
+    conversaTitulo.textContent = `Conversa com ${consumidorNome}`
+    conversaCard.hidden = false
+    statusCard.hidden = false
+    messageInput.disabled = false
+    sendButton.disabled = false
+    chatMessages.innerHTML = '<div class="chat-message chat-message-system">Carregando conversa...</div>'
+
+    await carregarHistorico()
+    conectarSocket()
+    await carregarStatus()
+}
+
+container.addEventListener('click', (event) => {
+    const botaoPerfil = event.target.closest('.abrir-perfil-btn')
+
+    if (botaoPerfil) {
+        const prestadorId = Number(botaoPerfil.dataset.outroId)
+
+        if (prestadorId) {
+            window.location.href = `/perfil?id=${prestadorId}`
+        }
+
+        return
+    }
+
+    const botao = event.target.closest('.abrir-conversa-btn')
+
+    if (!botao) return
+
+    const consumidorId = Number(botao.dataset.outroId)
+    const solicitacao = solicitacoesAtuais.find((item) => Number(item.outro_usuario_id) === consumidorId)
+
+    if (!solicitacao) return
+
+    abrirConversa(consumidorId, solicitacao.outro_usuario_nome)
+})
+
+async function carregarHistorico() {
+    const response = await fetch(`/chat/historico/${consumidorSelecionado}`, {
+        headers: { Authorization: `Bearer ${token}` }
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+        console.error('Erro ao carregar histórico:', response.status, data)
+        chatMessages.innerHTML = `<div class="chat-message chat-message-system">${escaparHtml(data.erro || 'Não foi possível carregar a conversa.')}</div>`
+        return
+    }
+
+    chatMessages.innerHTML = ''
+
+    for (const msg of data.mensagens || []) {
+        const tipo = Number(msg.remetente_id) === Number(usuarioLogado.id) ? 'sent' : 'received'
+        addMessage(tipo, msg.texto, msg.data_envio)
+    }
+}
+
+function conectarSocket() {
+    if (socket) {
+        socket.disconnect()
+    }
+
+    socket = io()
+
+    socket.on('connect', () => {
+        socket.emit('join_chat', {
+            conversa_id: idConversa,
+            remetente_id: usuarioLogado.id,
+            destinatario_id: consumidorSelecionado
+        })
+    })
+
+    socket.on('receive_message', (data) => {
+        if (!data || data.conversa_id !== idConversa) return
+        const tipo = Number(data.remetente_id) === Number(usuarioLogado.id) ? 'sent' : 'received'
+        addMessage(tipo, data.texto, data.data_envio || data.data)
+    })
+}
+
+async function carregarStatus() {
+    const response = await fetch(`/chat/status-servico/${usuarioLogado.id}?contratante_id=${consumidorSelecionado}`, {
+        headers: { Authorization: `Bearer ${token}` }
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+        console.error('Erro ao carregar status:', response.status, data)
+        statusTexto.textContent = data.erro || 'Não foi possível carregar o status do serviço.'
+        botaoLiberar.hidden = true
+        return
+    }
+
+    statusTexto.textContent = textoStatus(data.status)
+    botaoLiberar.hidden = false
+    botaoLiberar.disabled = !data.pode_liberar
+    botaoLiberar.textContent = data.pode_liberar ? 'Liberar finalização do serviço' : 'Finalização já liberada'
+
+    if (data.status === 'finalizado') {
+        botaoLiberar.textContent = 'Serviço finalizado'
+    }
+}
+
+sendButton.addEventListener('click', () => {
+    const texto = messageInput.value.trim()
+
+    if (!texto || !socket || !consumidorSelecionado) {
+        return
+    }
+
+    socket.emit('send_message', {
+        conversa_id: idConversa,
+        id_conversa: idConversa,
+        id_remetente: usuarioLogado.id,
+        id_destinatario: consumidorSelecionado,
+        texto
+    })
+
+    messageInput.value = ''
+})
+
+messageInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        sendButton.click()
+    }
+})
+
+botaoLiberar.addEventListener('click', async () => {
+    if (!consumidorSelecionado) return
+
+    const response = await fetch('/chat/liberar-finalizacao', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ contratante_id: consumidorSelecionado })
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+        console.error('Erro ao liberar finalização:', response.status, data)
+        statusTexto.textContent = data.erro || 'Não foi possível liberar a finalização.'
+        return
+    }
+
+    statusTexto.textContent = 'Finalização liberada para o consumidor.'
+    botaoLiberar.disabled = true
+    botaoLiberar.textContent = 'Finalização já liberada'
+    carregarSolicitacoes()
+})
+
+async function iniciar() {
+    usuarioLogado = await carregarUsuarioLogado()
+
+    if (!usuarioLogado) return
+
+    const tipoAtual = usuarioLogado.tipo_usuario || usuarioLogado.tipo || ''
+    usuarioPrestador = tipoAtual === 'contratado' || tipoAtual === 'prestador'
+    await carregarSolicitacoes()
+}
+
+iniciar()
+</script>
+
+</body>
+</html>
