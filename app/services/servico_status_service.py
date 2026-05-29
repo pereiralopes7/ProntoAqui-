@@ -1,9 +1,13 @@
 import json
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from app.services.chat_json_service import gerar_id_conversa
+from app.services.pix_service import (
+    formatar_valor_pix,
+    gerar_pix_copia_cola,
+    normalizar_txid,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -80,7 +84,10 @@ def criar_status_padrao(contratante_id, prestador_id):
         "nome_recebedor": None,
         "tipo_chave_pix": None,
         "chave_pix": None,
+        "cidade_recebedor": None,
         "descricao_pagamento": None,
+        "txid": None,
+        "pix_copia_cola": None,
         "data_liberacao": None,
         "data_finalizacao": None,
     }
@@ -96,6 +103,11 @@ def normalizar_status(item):
     return status
 
 
+def gerar_txid_conversa(conversa_id):
+    ids = "".join(char for char in str(conversa_id or "") if char.isdigit())
+    return normalizar_txid(f"CHAT{ids or conversa_id}")
+
+
 def buscar_status_servico(contratante_id, prestador_id):
     conversa_id = gerar_id_conversa(contratante_id, prestador_id)
 
@@ -107,27 +119,21 @@ def buscar_status_servico(contratante_id, prestador_id):
 
 
 def normalizar_valor_servico(valor):
-    valor = str(valor or "").strip().replace("R$", "").replace(" ", "")
-
-    if "," in valor:
-        valor = valor.replace(".", "").replace(",", ".")
-
-    try:
-        valor_decimal = Decimal(valor)
-    except (InvalidOperation, ValueError):
-        raise ValueError("Informe um valor de serviço válido.")
-
-    if valor_decimal <= 0:
-        raise ValueError("O valor do serviço deve ser maior que zero.")
-
-    return f"{valor_decimal.quantize(Decimal('0.01'))}"
+    return formatar_valor_pix(valor)
 
 
-def validar_dados_pagamento(valor_servico, nome_recebedor, tipo_chave_pix, chave_pix):
+def validar_dados_pagamento(
+    valor_servico,
+    nome_recebedor,
+    tipo_chave_pix,
+    chave_pix,
+    cidade_recebedor=None,
+):
     valor_normalizado = normalizar_valor_servico(valor_servico)
     nome_recebedor = str(nome_recebedor or "").strip()
     tipo_chave_pix = str(tipo_chave_pix or "").strip()
     chave_pix = str(chave_pix or "").strip()
+    cidade_recebedor = str(cidade_recebedor or "INDAIATUBA").strip()
 
     tipos_validos = {"CPF", "E-mail", "Telefone", "Chave aleatória"}
 
@@ -138,9 +144,50 @@ def validar_dados_pagamento(valor_servico, nome_recebedor, tipo_chave_pix, chave
         raise ValueError("Informe um tipo de chave Pix válido.")
 
     if not chave_pix:
-        raise ValueError("Informe a chave Pix.")
+        raise ValueError("Chave Pix não informada pelo prestador.")
 
-    return valor_normalizado, nome_recebedor, tipo_chave_pix, chave_pix
+    if not cidade_recebedor:
+        raise ValueError("Informe a cidade do recebedor.")
+
+    return valor_normalizado, nome_recebedor, tipo_chave_pix, chave_pix, cidade_recebedor
+
+
+def garantir_pix_copia_cola(status):
+    status = normalizar_status(status)
+
+    if status.get("pix_copia_cola"):
+        return status
+
+    if not status.get("chave_pix"):
+        raise ValueError("Dados de pagamento incompletos. Peça para o prestador liberar a finalização novamente.")
+
+    if not status.get("nome_recebedor"):
+        raise ValueError("Dados de pagamento incompletos. Peça para o prestador liberar a finalização novamente.")
+
+    if not status.get("valor_servico"):
+        raise ValueError("Dados de pagamento incompletos. Peça para o prestador liberar a finalização novamente.")
+
+    status["cidade_recebedor"] = status.get("cidade_recebedor") or "INDAIATUBA"
+    status["descricao_pagamento"] = status.get("descricao_pagamento") or "Servico ProntoAqui"
+    status["txid"] = status.get("txid") or gerar_txid_conversa(status["conversa_id"])
+    status["pix_copia_cola"] = gerar_pix_copia_cola(
+        status["chave_pix"],
+        status["nome_recebedor"],
+        status["cidade_recebedor"],
+        status["valor_servico"],
+        status["txid"],
+        status["descricao_pagamento"],
+    )
+
+    status_lista = carregar_status()
+
+    for indice, item in enumerate(status_lista):
+        if item.get("conversa_id") == status["conversa_id"]:
+            status_lista[indice] = status
+            salvar_status(status_lista)
+            break
+
+    return status
 
 
 def liberar_finalizacao(
@@ -150,16 +197,34 @@ def liberar_finalizacao(
     nome_recebedor,
     tipo_chave_pix,
     chave_pix,
+    cidade_recebedor=None,
     descricao_pagamento=None,
 ):
     # Fluxo de pagamento simulado para apresentação. Integração Pix real será implementada futuramente.
-    valor_servico, nome_recebedor, tipo_chave_pix, chave_pix = validar_dados_pagamento(
+    (
         valor_servico,
         nome_recebedor,
         tipo_chave_pix,
         chave_pix,
+        cidade_recebedor,
+    ) = validar_dados_pagamento(
+        valor_servico,
+        nome_recebedor,
+        tipo_chave_pix,
+        chave_pix,
+        cidade_recebedor,
     )
     novo_status = criar_status_padrao(contratante_id, prestador_id)
+    descricao_pagamento = str(descricao_pagamento or "").strip() or "Servico ProntoAqui"
+    txid = gerar_txid_conversa(novo_status["conversa_id"])
+    pix_copia_cola = gerar_pix_copia_cola(
+        chave_pix,
+        nome_recebedor,
+        cidade_recebedor,
+        valor_servico,
+        txid,
+        descricao_pagamento,
+    )
     status = carregar_status()
 
     for indice, item in enumerate(status):
@@ -171,7 +236,10 @@ def liberar_finalizacao(
             novo_status["nome_recebedor"] = nome_recebedor
             novo_status["tipo_chave_pix"] = tipo_chave_pix
             novo_status["chave_pix"] = chave_pix
-            novo_status["descricao_pagamento"] = str(descricao_pagamento or "").strip() or None
+            novo_status["cidade_recebedor"] = cidade_recebedor
+            novo_status["descricao_pagamento"] = descricao_pagamento
+            novo_status["txid"] = txid
+            novo_status["pix_copia_cola"] = pix_copia_cola
             novo_status["data_liberacao"] = novo_status.get("data_liberacao") or agora_iso()
             status[indice] = novo_status
             salvar_status(status)
@@ -183,7 +251,10 @@ def liberar_finalizacao(
     novo_status["nome_recebedor"] = nome_recebedor
     novo_status["tipo_chave_pix"] = tipo_chave_pix
     novo_status["chave_pix"] = chave_pix
-    novo_status["descricao_pagamento"] = str(descricao_pagamento or "").strip() or None
+    novo_status["cidade_recebedor"] = cidade_recebedor
+    novo_status["descricao_pagamento"] = descricao_pagamento
+    novo_status["txid"] = txid
+    novo_status["pix_copia_cola"] = pix_copia_cola
     novo_status["data_liberacao"] = agora_iso()
     status.append(novo_status)
     salvar_status(status)

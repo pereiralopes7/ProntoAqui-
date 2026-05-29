@@ -16,7 +16,7 @@
 <main class="pagamento-container">
 <section class="perfil-card pagamento-card">
     <h1>Pagamento do serviço</h1>
-    <p class="subtitulo">Escaneie o QR Code para realizar o pagamento.</p>
+    <p class="subtitulo">Use o QR Code ou copie o código Pix abaixo.</p>
 
     <div id="pagamento-mensagem" class="pagamento-mensagem" role="status"></div>
 
@@ -27,16 +27,16 @@
     <div id="qrcode" class="qrcode-box" aria-label="QR Code do pagamento"></div>
 
     <label class="codigo-pagamento-label" for="codigo-pagamento-texto">
-        Dados para pagamento
+        Pix Copia e Cola
     </label>
-    <textarea id="codigo-pagamento-texto" readonly placeholder="Os dados do pagamento aparecerão aqui."></textarea>
+    <textarea id="codigo-pagamento-texto" readonly placeholder="O Pix Copia e Cola aparecerá aqui."></textarea>
 
     <button class="btn-secundario pagamento-copiar" id="copiar-pagamento" type="button" disabled>
-        Copiar dados do pagamento
+        Copiar Pix Copia e Cola
     </button>
 
     <p class="texto-apoio">
-        Este QR Code é uma simulação para apresentação. A integração Pix real será implementada futuramente.
+        Este pagamento é uma simulação para apresentação. A confirmação bancária real será implementada futuramente.
     </p>
 
     <button class="btn-amarelo pagamento-confirmar" id="confirmar-pagamento" type="button" disabled>
@@ -58,7 +58,7 @@ const codigoPagamentoTexto = document.getElementById('codigo-pagamento-texto')
 const mensagemPagamento = document.getElementById('pagamento-mensagem')
 
 let pagamentoAtual = null
-let textoPagamento = ''
+let pixCopiaCola = ''
 
 function escaparHtml(valor) {
     return String(valor || '')
@@ -101,25 +101,11 @@ function mostrarErro(mensagem) {
     confirmarBtn.disabled = true
 }
 
-function montarTextoPagamento(dados) {
-    const nomeRecebedor = textoOuPadrao(dados.nome_recebedor, 'Recebedor não informado')
-    const tipoChavePix = textoOuPadrao(dados.tipo_chave_pix, 'Tipo da chave Pix não informado')
-    const chavePix = textoOuPadrao(dados.chave_pix, '')
-    const valorFormatado = formatarMoeda(dados.valor_servico)
-    const descricaoPagamento = textoOuPadrao(dados.descricao_pagamento, 'Pagamento de serviço pelo ProntoAqui')
-
-    return [
-        'ProntoAqui - Pagamento de serviço',
-        `Recebedor: ${nomeRecebedor}`,
-        `Tipo da chave Pix: ${tipoChavePix}`,
-        `Chave Pix: ${chavePix}`,
-        `Valor: ${valorFormatado}`,
-        `Descrição: ${descricaoPagamento}`,
-        `Conversa: ${dados.conversa_id}`
-    ].join('\n')
-}
-
 function validarDadosParaQrCode(dados) {
+    if (!String(dados.pix_copia_cola || '').trim()) {
+        return 'Código Pix não encontrado.'
+    }
+
     if (!String(dados.nome_recebedor || '').trim()) {
         return 'Recebedor não informado pelo prestador.'
     }
@@ -138,15 +124,19 @@ function validarDadosParaQrCode(dados) {
 function gerarQrCode() {
     qrcodeContainer.innerHTML = ''
 
+    if (!pixCopiaCola) {
+        mostrarErro('Código Pix não encontrado.')
+        return
+    }
+
     if (typeof QRCode === 'undefined') {
-        qrcodeContainer.innerHTML = '<p>Erro ao carregar gerador de QR Code. Verifique a conexão.</p>'
-        mostrarMensagem('Erro ao carregar gerador de QR Code. Verifique a conexão.', true)
+        mostrarErro('Não foi possível carregar o gerador de QR Code.')
         return
     }
 
     try {
         new QRCode(qrcodeContainer, {
-            text: textoPagamento,
+            text: pixCopiaCola,
             width: 220,
             height: 220,
             colorDark: '#000000',
@@ -166,6 +156,7 @@ function renderizarPagamento(dados) {
     const nomeRecebedor = textoOuPadrao(dados.nome_recebedor, 'Recebedor não informado')
     const tipoChavePix = textoOuPadrao(dados.tipo_chave_pix, 'Tipo da chave Pix não informado')
     const chavePix = textoOuPadrao(dados.chave_pix, 'Chave Pix não informada')
+    const cidadeRecebedor = textoOuPadrao(dados.cidade_recebedor, 'Indaiatuba')
     const descricaoPagamento = textoOuPadrao(dados.descricao_pagamento, 'Pagamento de serviço pelo ProntoAqui')
     const valorFormatado = formatarMoeda(dados.valor_servico)
 
@@ -174,11 +165,12 @@ function renderizarPagamento(dados) {
         <p><strong>Valor:</strong> ${escaparHtml(valorFormatado)}</p>
         <p><strong>Tipo da chave Pix:</strong> ${escaparHtml(tipoChavePix)}</p>
         <p><strong>Chave Pix:</strong> ${escaparHtml(chavePix)}</p>
+        <p><strong>Cidade:</strong> ${escaparHtml(cidadeRecebedor)}</p>
         <p><strong>Descrição:</strong> ${escaparHtml(descricaoPagamento)}</p>
     `
 
-    textoPagamento = montarTextoPagamento(dados)
-    codigoPagamentoTexto.value = textoPagamento
+    pixCopiaCola = String(dados.pix_copia_cola || '').trim()
+    codigoPagamentoTexto.value = pixCopiaCola
     copiarBtn.disabled = false
 
     const erroValidacao = validarDadosParaQrCode(dados)
@@ -224,38 +216,40 @@ async function carregarPagamento() {
     renderizarPagamento(data)
 }
 
-async function copiarDadosPagamento() {
-    if (!textoPagamento) {
-        mostrarMensagem('Não há dados de pagamento para copiar.', true)
+async function copiarPix() {
+    if (!pixCopiaCola) {
+        mostrarMensagem('Não há código Pix para copiar.', true)
         return
     }
 
     try {
-        await navigator.clipboard.writeText(textoPagamento)
-        mostrarMensagem('Dados do pagamento copiados com sucesso.')
+        await navigator.clipboard.writeText(pixCopiaCola)
+        mostrarMensagem('Código Pix copiado com sucesso.')
         return
     } catch (error) {
-        console.error('Erro ao copiar dados:', error)
+        console.error('Erro ao copiar Pix:', error)
     }
 
+    const textarea = document.createElement('textarea')
+    textarea.value = pixCopiaCola
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+
     try {
-        const textarea = document.createElement('textarea')
-        textarea.value = textoPagamento
-        textarea.setAttribute('readonly', '')
-        textarea.style.position = 'fixed'
-        textarea.style.left = '-9999px'
-        document.body.appendChild(textarea)
-        textarea.select()
         document.execCommand('copy')
-        document.body.removeChild(textarea)
-        mostrarMensagem('Dados do pagamento copiados com sucesso.')
+        mostrarMensagem('Código Pix copiado com sucesso.')
     } catch (fallbackError) {
         console.error('Erro no fallback de cópia:', fallbackError)
-        mostrarMensagem('Não foi possível copiar os dados. Copie manualmente as informações exibidas na tela.', true)
+        mostrarMensagem('Não foi possível copiar. Selecione e copie manualmente o código Pix.', true)
+    } finally {
+        document.body.removeChild(textarea)
     }
 }
 
-copiarBtn.addEventListener('click', copiarDadosPagamento)
+copiarBtn.addEventListener('click', copiarPix)
 
 confirmarBtn.addEventListener('click', async () => {
     if (!pagamentoAtual || confirmarBtn.disabled) return

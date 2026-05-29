@@ -437,6 +437,21 @@ botaoLiberarFinalizacao.addEventListener('click', async () => {
         return
     }
 
+    const valorServico = prompt('Valor do serviço', '1,00')
+    if (!valorServico) return
+
+    const nomeRecebedor = prompt('Nome do recebedor')
+    if (!nomeRecebedor) return
+
+    const tipoChavePix = prompt('Tipo da chave Pix: CPF, E-mail, Telefone ou Chave aleatória', 'Telefone')
+    if (!tipoChavePix) return
+
+    const chavePix = prompt('Chave Pix')
+    if (!chavePix) return
+
+    const cidadeRecebedor = prompt('Cidade do recebedor', 'Indaiatuba') || 'Indaiatuba'
+    const descricaoPagamento = prompt('Descrição do pagamento', 'Servico ProntoAqui') || 'Servico ProntoAqui'
+
     try {
         const response = await fetch('/chat/liberar-finalizacao', {
             method: 'POST',
@@ -445,7 +460,13 @@ botaoLiberarFinalizacao.addEventListener('click', async () => {
                 Authorization: `Bearer ${token}`
             },
             body: JSON.stringify({
-                contratante_id: contratanteIdParam
+                contratante_id: contratanteIdParam,
+                valor_servico: valorServico,
+                nome_recebedor: nomeRecebedor,
+                tipo_chave_pix: tipoChavePix,
+                chave_pix: chavePix,
+                cidade_recebedor: cidadeRecebedor,
+                descricao_pagamento: descricaoPagamento
             })
         })
         const data = await response.json().catch(() => ({}))

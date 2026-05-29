@@ -61,6 +61,10 @@
             <input id="chave-pix" name="chave_pix" type="text" placeholder="marcos@email.com" required>
         </label>
         <label>
+            Cidade do recebedor
+            <input id="cidade-recebedor" name="cidade_recebedor" type="text" placeholder="Indaiatuba" value="Indaiatuba" required>
+        </label>
+        <label>
             Descrição do pagamento
             <textarea id="descricao-pagamento" name="descricao_pagamento" placeholder="Serviço combinado pelo ProntoAqui."></textarea>
         </label>
@@ -382,6 +386,7 @@ formLiberarPagamento.addEventListener('submit', async (event) => {
             nome_recebedor: formData.get('nome_recebedor'),
             tipo_chave_pix: formData.get('tipo_chave_pix'),
             chave_pix: formData.get('chave_pix'),
+            cidade_recebedor: formData.get('cidade_recebedor'),
             descricao_pagamento: formData.get('descricao_pagamento')
         })
     })

@@ -410,6 +410,7 @@ def liberar_finalizacao_servico():
             data.get("nome_recebedor"),
             data.get("tipo_chave_pix"),
             data.get("chave_pix"),
+            data.get("cidade_recebedor"),
             data.get("descricao_pagamento"),
         )
         return jsonify({

@@ -6,6 +6,7 @@ from app.services.servico_status_service import (
     buscar_pagamento_por_conversa,
     buscar_status_servico,
     finalizar_servico,
+    garantir_pix_copia_cola,
     verificar_usuario_na_conversa,
 )
 from app.utils.jwt_handler import decodificar_token
@@ -63,7 +64,10 @@ def montar_payload_pagamento(status):
         "nome_recebedor": status.get("nome_recebedor"),
         "tipo_chave_pix": status.get("tipo_chave_pix"),
         "chave_pix": status.get("chave_pix"),
+        "cidade_recebedor": status.get("cidade_recebedor"),
         "descricao_pagamento": status.get("descricao_pagamento"),
+        "txid": status.get("txid"),
+        "pix_copia_cola": status.get("pix_copia_cola"),
     }
 
 
@@ -114,6 +118,13 @@ def dados_pagamento(conversa_id):
 
     if not status.get("finalizacao_liberada"):
         return jsonify({"erro": "Pagamento ainda não liberado pelo prestador."}), 403
+
+    try:
+        status = garantir_pix_copia_cola(status)
+    except ValueError:
+        return jsonify({
+            "erro": "Dados de pagamento incompletos. Peça para o prestador liberar a finalização novamente."
+        }), 400
 
     return jsonify(montar_payload_pagamento(status)), 200
 

@@ -825,11 +825,12 @@ margin-bottom:10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 250px;
-    height: 250px;
-    margin: 18px auto;
-    padding: 15px;
-    border-radius: 8px;
+    width: fit-content;
+    min-width: 244px;
+    min-height: 244px;
+    margin: 20px auto;
+    padding: 12px;
+    border-radius: 12px;
     background: #ffffff;
     color: #222;
 }
