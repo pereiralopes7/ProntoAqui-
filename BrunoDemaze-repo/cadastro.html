@@ -20,7 +20,16 @@ Voltar
 
 <input id="cadastro-nome" type="text" placeholder="Nome" required>
 <input id="cadastro-email" type="email" placeholder="Email" required>
-<input id="cadastro-data-nascimento" type="date" required>
+<input
+    id="cadastro-data-nascimento"
+    name="data_nascimento_visual"
+    type="text"
+    placeholder="Data de nascimento"
+    inputmode="numeric"
+    maxlength="10"
+    autocomplete="bday"
+    required
+>
 
 <button type="button" id="gerar-codigo">Gerar código de verificação</button>
 <input id="codigo-verificacao" type="text" inputmode="numeric" maxlength="6" placeholder="Digite o código de verificação">
@@ -93,6 +102,7 @@ const fotoPlaceholder = document.getElementById("foto-placeholder");
 const ajustesFoto = document.getElementById("ajustes-foto");
 const fotoPosY = document.getElementById("foto-pos-y");
 const cepInput = document.getElementById("cadastro-cep");
+const dataNascimentoInput = document.getElementById("cadastro-data-nascimento");
 
 let emailVerificado = false;
 let ultimoCodigoValidado = "";
@@ -111,6 +121,51 @@ function showPopup(message, isError = false) {
 function bloquearCadastro(motivo) {
     showPopup(motivo, true);
     return false;
+}
+
+function aplicarMascaraData(valor) {
+    valor = String(valor || "").replace(/\D/g, "");
+    valor = valor.replace(/(\d{2})(\d)/, "$1/$2");
+    valor = valor.replace(/(\d{2})\/(\d{2})(\d)/, "$1/$2/$3");
+    return valor.slice(0, 10);
+}
+
+function converterDataParaISO(dataBR) {
+    const partes = String(dataBR || "").split("/");
+
+    if (partes.length !== 3) {
+        return "";
+    }
+
+    const [dia, mes, ano] = partes;
+
+    if (!dia || !mes || !ano || ano.length !== 4) {
+        return "";
+    }
+
+    const diaNumero = Number(dia);
+    const mesNumero = Number(mes);
+    const anoNumero = Number(ano);
+    const data = new Date(anoNumero, mesNumero - 1, diaNumero);
+
+    if (
+        data.getFullYear() !== anoNumero ||
+        data.getMonth() !== mesNumero - 1 ||
+        data.getDate() !== diaNumero
+    ) {
+        return "";
+    }
+
+    return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+}
+
+function dataISOEhFutura(dataISO) {
+    const [ano, mes, dia] = dataISO.split("-").map(Number);
+    const data = new Date(ano, mes - 1, dia);
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    return data > hoje;
 }
 
 async function buscarCep(cep) {
@@ -181,6 +236,10 @@ cepInput.addEventListener("input", () => {
     if (cepLimpo.length === 8) {
         buscarCep(cepLimpo);
     }
+});
+
+dataNascimentoInput.addEventListener("input", () => {
+    dataNascimentoInput.value = aplicarMascaraData(dataNascimentoInput.value);
 });
 
 fotoInput.addEventListener("change", () => {
@@ -301,7 +360,8 @@ function validarCamposCadastro() {
     const email = document.getElementById("cadastro-email").value.trim();
     const codigo = document.getElementById("codigo-verificacao").value.trim();
     const senha = document.getElementById("cadastro-senha").value.trim();
-    const dataNascimento = document.getElementById("cadastro-data-nascimento").value;
+    const dataNascimentoVisual = dataNascimentoInput.value.trim();
+    const dataNascimento = converterDataParaISO(dataNascimentoVisual);
     const tipoUsuario = tipoSelect.value;
     const telefone = document.getElementById("cadastro-telefone").value.trim();
     const cep = document.getElementById("cadastro-cep").value.trim();
@@ -316,8 +376,9 @@ function validarCamposCadastro() {
     if (!nome) return bloquearCadastro("Preencha o nome.");
     if (!email) return bloquearCadastro("Preencha o email.");
     if (!email.includes("@") || !email.includes(".")) return bloquearCadastro("Informe um email válido.");
-    if (!dataNascimento) return bloquearCadastro("Informe a data de nascimento.");
-    if (new Date(dataNascimento) > new Date()) return bloquearCadastro("A data de nascimento não pode ser futura.");
+    if (!dataNascimentoVisual) return bloquearCadastro("Informe a data de nascimento.");
+    if (!dataNascimento) return bloquearCadastro("Informe a data de nascimento no formato DD/MM/AAAA.");
+    if (dataISOEhFutura(dataNascimento)) return bloquearCadastro("A data de nascimento não pode ser futura.");
     if (!codigo) return bloquearCadastro("Digite o código de verificação.");
     if (!senha) return bloquearCadastro("Preencha a senha.");
     if (senha.length < 6) return bloquearCadastro("A senha deve ter pelo menos 6 caracteres.");
@@ -392,9 +453,11 @@ cadastroForm.addEventListener("submit", async (event) => {
     };
 
     const formData = new FormData();
+    const dataNascimento = converterDataParaISO(dataNascimentoInput.value.trim());
+
     formData.append("nome", document.getElementById("cadastro-nome").value.trim());
     formData.append("email", email);
-    formData.append("data_nascimento", document.getElementById("cadastro-data-nascimento").value);
+    formData.append("data_nascimento", dataNascimento);
     formData.append("telefone", document.getElementById("cadastro-telefone").value.trim());
     formData.append("tipo", tipoSelect.value);
     formData.append("profissao", document.getElementById("cadastro-profissao").value.trim());
@@ -413,9 +476,10 @@ cadastroForm.addEventListener("submit", async (event) => {
             body: formData
         });
 
-        const data = await resposta.json();
+        const data = await resposta.json().catch(() => ({}));
 
         if (!resposta.ok) {
+            console.error("Erro no cadastro:", resposta.status, data);
             showPopup(data.erro || "Não foi possível criar sua conta.", true);
             return;
         }
@@ -426,8 +490,8 @@ cadastroForm.addEventListener("submit", async (event) => {
             window.location.href = "login.html";
         }, 900);
     } catch (error) {
-        console.error("Erro ao cadastrar:", error);
-        showPopup("Erro ao conectar com o servidor.", true);
+        console.error("Erro de conexão no cadastro:", error);
+        showPopup("Erro ao conectar com o servidor. Verifique sua conexão ou tente novamente.", true);
     }
 });
 

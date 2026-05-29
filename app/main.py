@@ -7,7 +7,7 @@ import sys
 
 from app.sockets.chat_socket import register_chat_events
 
-from app.routes.auth_routes import auth
+from app.routes.auth_routes import auth, register
 from app.routes.usuario_routes import usuario
 from app.routes.usuario_routes import normalizar_foto
 from app.routes.chat_routes import chat
@@ -86,6 +86,7 @@ with app.app_context():
 app.register_blueprint(pagamento)
 
 app.register_blueprint(auth, url_prefix="/auth")
+app.add_url_rule("/register", "register_root", register, methods=["POST"])
 
 app.register_blueprint(usuario)
 

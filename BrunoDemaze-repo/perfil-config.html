@@ -52,7 +52,15 @@ Voltar
 <input id="profile-phone" type="tel" placeholder="(00) 00000-0000" disabled>
 
 <label for="profile-birthdate">Data de nascimento</label>
-<input id="profile-birthdate" type="date" disabled>
+<input
+    id="profile-birthdate"
+    type="text"
+    placeholder="DD/MM/AAAA"
+    inputmode="numeric"
+    maxlength="10"
+    autocomplete="bday"
+    disabled
+>
 
 <div id="profile-provider-fields" style="display: none;">
     <label for="profile-profession">Profissão</label>
@@ -109,6 +117,7 @@ const profilePhotoRemove = document.getElementById("profile-photo-remove");
 const profilePhotoAdjustments = document.getElementById("profile-photo-adjustments");
 const profilePhotoPosY = document.getElementById("profile-photo-pos-y");
 const profileCepInput = document.getElementById("profile-cep");
+const profileBirthdateInput = document.getElementById("profile-birthdate");
 
 let fotoSelecionada = null;
 let fotoRemovida = false;
@@ -136,6 +145,68 @@ const profileInputs = [
 if (!token) {
     alert("Você precisa estar logado para acessar as configurações.");
     window.location.href = "login.html";
+}
+
+function aplicarMascaraData(valor) {
+    valor = String(valor || "").replace(/\D/g, "");
+    valor = valor.replace(/(\d{2})(\d)/, "$1/$2");
+    valor = valor.replace(/(\d{2})\/(\d{2})(\d)/, "$1/$2/$3");
+    return valor.slice(0, 10);
+}
+
+function converterDataParaISO(dataBR) {
+    const partes = String(dataBR || "").split("/");
+
+    if (partes.length !== 3) {
+        return "";
+    }
+
+    const [dia, mes, ano] = partes;
+
+    if (!dia || !mes || !ano || ano.length !== 4) {
+        return "";
+    }
+
+    const diaNumero = Number(dia);
+    const mesNumero = Number(mes);
+    const anoNumero = Number(ano);
+    const data = new Date(anoNumero, mesNumero - 1, diaNumero);
+
+    if (
+        data.getFullYear() !== anoNumero ||
+        data.getMonth() !== mesNumero - 1 ||
+        data.getDate() !== diaNumero
+    ) {
+        return "";
+    }
+
+    return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+}
+
+function converterDataParaBR(dataISO) {
+    const valor = String(dataISO || "").slice(0, 10);
+    const partes = valor.split("-");
+
+    if (partes.length !== 3) {
+        return "";
+    }
+
+    const [ano, mes, dia] = partes;
+
+    if (!ano || !mes || !dia) {
+        return "";
+    }
+
+    return `${dia.padStart(2, "0")}/${mes.padStart(2, "0")}/${ano}`;
+}
+
+function dataISOEhFutura(dataISO) {
+    const [ano, mes, dia] = dataISO.split("-").map(Number);
+    const data = new Date(ano, mes - 1, dia);
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    return data > hoje;
 }
 
 async function buscarCepPerfil(cep) {
@@ -324,6 +395,11 @@ profileCepInput.addEventListener("input", () => {
     }
 });
 
+profileBirthdateInput.addEventListener("input", () => {
+    profileBirthdateInput.value = aplicarMascaraData(profileBirthdateInput.value);
+    setEditMode(true);
+});
+
 async function carregarDadosUsuario() {
     try {
         const resposta = await fetch("/usuario/me", {
@@ -343,7 +419,7 @@ async function carregarDadosUsuario() {
         document.getElementById("profile-name").value = data.nome || "";
         document.getElementById("profile-email").value = data.email || "";
         document.getElementById("profile-phone").value = data.telefone || "";
-        document.getElementById("profile-birthdate").value = data.data_nascimento || "";
+        profileBirthdateInput.value = converterDataParaBR(data.data_nascimento);
 
         fotoSelecionada = null;
         fotoRemovida = false;
@@ -392,11 +468,24 @@ editProfileButton.addEventListener("click", () => {
 saveProfileButton.addEventListener("click", async (event) => {
     event.preventDefault();
 
+    const dataNascimentoVisual = profileBirthdateInput.value.trim();
+    const dataNascimentoISO = dataNascimentoVisual ? converterDataParaISO(dataNascimentoVisual) : "";
+
+    if (dataNascimentoVisual && !dataNascimentoISO) {
+        alert("Informe a data de nascimento no formato DD/MM/AAAA.");
+        return;
+    }
+
+    if (dataNascimentoISO && dataISOEhFutura(dataNascimentoISO)) {
+        alert("A data de nascimento não pode ser futura.");
+        return;
+    }
+
     const dadosAtualizados = {
         nome: document.getElementById("profile-name").value.trim(),
         email: document.getElementById("profile-email").value.trim(),
         telefone: document.getElementById("profile-phone").value.trim(),
-        data_nascimento: document.getElementById("profile-birthdate").value,
+        data_nascimento: dataNascimentoISO,
         profissao: usuarioAtualEhPrestador ? document.getElementById("profile-profession")?.value.trim() || "" : "",
         descricao: usuarioAtualEhPrestador ? document.getElementById("profile-description")?.value.trim() || "" : "",
         endereco: {
