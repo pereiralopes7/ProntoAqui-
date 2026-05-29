@@ -68,10 +68,24 @@ async function fazerLogin(email, senha) {
 
 // Fazer logout
 function fazerLogout() {
-  localStorage.removeItem('token')
-  localStorage.removeItem('usuario')
-  localStorage.removeItem('tipo_usuario')
-  window.location.href = 'login.html'
+  sairDaConta()
+}
+
+function sairDaConta() {
+  const chavesSessao = [
+    'token',
+    'usuario',
+    'user',
+    'usuarioLogado',
+    'tipo_usuario',
+    'nome_usuario',
+    'id_usuario'
+  ]
+
+  chavesSessao.forEach((chave) => localStorage.removeItem(chave))
+  sessionStorage.clear()
+
+  window.location.href = 'index.html'
 }
 
 // Cadastrar novo usuário

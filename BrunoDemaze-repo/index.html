@@ -9,6 +9,7 @@
 <title>ProntoAqui</title>
 
 <link rel="stylesheet" href="css/style.css">
+<script src="js/auth.js"></script>
 
 </head>
 
@@ -23,9 +24,10 @@
 <div class="user-menu-panel" id="user-menu-panel">
 <div class="user-menu-name" id="user-menu-name">Usuário</div>
 <div class="user-menu-divider"></div>
-<a href="login.html">Login / Registrar</a>
+<a href="login.html" id="menu-login">Login / Registrar</a>
 <a href="meus-servicos.html" id="menu-servicos">Meus serviços</a>
-<a href="perfil-config.html">Configurações do usuário</a>
+<a href="perfil-config.html" id="menu-configuracoes">Configurações do usuário</a>
+<button class="user-menu-link" id="menu-sair" type="button">Sair</button>
 </div>
 </nav>
 
@@ -85,11 +87,15 @@ const userMenu = document.querySelector(".user-menu");
 const userMenuButton = document.getElementById("user-menu-button");
 const userMenuPanel = document.getElementById("user-menu-panel");
 const userMenuName = document.getElementById("user-menu-name");
+const menuLogin = document.getElementById("menu-login");
 const menuServicos = document.getElementById("menu-servicos");
+const menuConfiguracoes = document.getElementById("menu-configuracoes");
+const menuSair = document.getElementById("menu-sair");
 const homePrimaryLink = document.getElementById("home-primary-link");
 const homePrimaryButton = document.getElementById("home-primary-button");
 const homeSecondaryLink = document.getElementById("home-secondary-link");
 const homeSecondaryButton = document.getElementById("home-secondary-button");
+const token = localStorage.getItem("token");
 const usuarioSalvo = localStorage.getItem("usuario");
 
 function usuarioEhPrestador(usuario) {
@@ -97,10 +103,36 @@ const tipo = usuario?.tipo_usuario || usuario?.tipo || "";
 return tipo === "contratado" || tipo === "prestador";
 }
 
-if (usuarioSalvo) {
+function obterUsuarioMenu() {
+if (!usuarioSalvo) {
+return null;
+}
+
 try {
-const usuario = JSON.parse(usuarioSalvo);
+return JSON.parse(usuarioSalvo);
+} catch (error) {
+return { nome: localStorage.getItem("nome_usuario") || "Usuário", tipo: localStorage.getItem("tipo_usuario") };
+}
+}
+
+function configurarMenuDeslogado() {
+userMenuName.textContent = "Usuário";
+menuLogin.hidden = false;
+menuServicos.hidden = true;
+menuConfiguracoes.hidden = true;
+menuSair.hidden = true;
+homePrimaryLink.href = "servicos.html";
+homePrimaryButton.textContent = "Buscar profissionais";
+homeSecondaryLink.href = "login.html";
+homeSecondaryButton.textContent = "Login / Registrar";
+}
+
+function configurarMenuLogado(usuario) {
 userMenuName.textContent = usuario.nome || "Usuário";
+menuLogin.hidden = true;
+menuServicos.hidden = false;
+menuConfiguracoes.hidden = false;
+menuSair.hidden = false;
 
 if (usuarioEhPrestador(usuario)) {
 const perfilUrl = usuario.id ? `perfil?id=${usuario.id}` : "perfil-config.html";
@@ -116,10 +148,17 @@ homePrimaryButton.textContent = "Buscar profissionais";
 homeSecondaryLink.href = "meus-servicos.html";
 homeSecondaryButton.textContent = "Solicitações em andamento";
 }
-} catch (error) {
-userMenuName.textContent = "Usuário";
 }
+
+const usuario = token ? obterUsuarioMenu() : null;
+
+if (usuario) {
+configurarMenuLogado(usuario);
+} else {
+configurarMenuDeslogado();
 }
+
+menuSair.addEventListener("click", sairDaConta);
 
 userMenuButton.addEventListener("click", () => {
 const isOpen = userMenu.classList.toggle("is-open");

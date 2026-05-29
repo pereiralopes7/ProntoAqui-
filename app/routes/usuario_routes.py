@@ -609,10 +609,14 @@ def apagar_minha_conta():
     if not user_id:
         return jsonify({"erro": "Usuario nao autenticado"}), 401
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    conn = None
 
     try:
+        conn = get_connection()
+        conn.execute("PRAGMA busy_timeout = 10000")
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+
         get_coluna_endereco(cursor)
 
         # Apaga códigos de verificação do email do usuário
@@ -737,13 +741,12 @@ def apagar_minha_conta():
         """, (user_id,))
 
         conn.commit()
-        conn.close()
 
         return jsonify({"msg": "Conta apagada com sucesso"}), 200
 
     except Exception as e:
-        conn.rollback()
-        conn.close()
+        if conn:
+            conn.rollback()
 
         print("Erro ao apagar conta:", str(e))
 
@@ -751,6 +754,10 @@ def apagar_minha_conta():
             "erro": "Nao foi possivel apagar a conta",
             "detalhe": str(e)
         }), 500
+
+    finally:
+        if conn:
+            conn.close()
 
 
 @usuario.route("/proximos", methods=["GET"])
