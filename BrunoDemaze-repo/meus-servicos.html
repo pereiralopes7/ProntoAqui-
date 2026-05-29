@@ -35,6 +35,43 @@
 </section>
 </section>
 
+<div class="modal-pagamento" id="modal-pagamento" hidden>
+    <form class="modal-pagamento-conteudo" id="form-liberar-pagamento">
+        <h3>Informe os dados para pagamento</h3>
+        <label>
+            Valor do serviço
+            <input id="valor-servico" name="valor_servico" type="text" placeholder="150,00" required>
+        </label>
+        <label>
+            Nome do recebedor
+            <input id="nome-recebedor" name="nome_recebedor" type="text" placeholder="Marcos Silva" required>
+        </label>
+        <label>
+            Tipo da chave Pix
+            <select id="tipo-chave-pix" name="tipo_chave_pix" required>
+                <option value="">Selecione</option>
+                <option value="CPF">CPF</option>
+                <option value="E-mail">E-mail</option>
+                <option value="Telefone">Telefone</option>
+                <option value="Chave aleatória">Chave aleatória</option>
+            </select>
+        </label>
+        <label>
+            Chave Pix
+            <input id="chave-pix" name="chave_pix" type="text" placeholder="marcos@email.com" required>
+        </label>
+        <label>
+            Descrição do pagamento
+            <textarea id="descricao-pagamento" name="descricao_pagamento" placeholder="Serviço combinado pelo ProntoAqui."></textarea>
+        </label>
+        <p class="texto-apoio">Fluxo de pagamento simulado para apresentação. Integração Pix real será implementada futuramente.</p>
+        <div class="modal-pagamento-acoes">
+            <button class="btn-secundario" id="cancelar-pagamento" type="button">Cancelar</button>
+            <button class="btn-amarelo" type="submit">Liberar finalização</button>
+        </div>
+    </form>
+</div>
+
 <script>
 const token = localStorage.getItem('token')
 
@@ -49,6 +86,9 @@ const sendButton = document.getElementById('botao-enviar')
 const statusCard = document.getElementById('status-servico-card')
 const statusTexto = document.getElementById('status-servico-texto')
 const botaoLiberar = document.getElementById('botao-liberar-finalizacao')
+const modalPagamento = document.getElementById('modal-pagamento')
+const formLiberarPagamento = document.getElementById('form-liberar-pagamento')
+const cancelarPagamento = document.getElementById('cancelar-pagamento')
 
 let usuarioLogado = null
 let consumidorSelecionado = null
@@ -90,6 +130,15 @@ function textoStatus(status) {
     }
     if (status === 'finalizado') return 'Serviço finalizado com sucesso.'
     return 'Negociação em andamento.'
+}
+
+function abrirModalPagamento() {
+    modalPagamento.hidden = false
+}
+
+function fecharModalPagamento() {
+    modalPagamento.hidden = true
+    formLiberarPagamento.reset()
 }
 
 function addMessage(tipo, texto, dataEnvio = '') {
@@ -310,14 +359,31 @@ messageInput.addEventListener('keydown', (event) => {
 
 botaoLiberar.addEventListener('click', async () => {
     if (!consumidorSelecionado) return
+    abrirModalPagamento()
+})
 
+cancelarPagamento.addEventListener('click', fecharModalPagamento)
+
+formLiberarPagamento.addEventListener('submit', async (event) => {
+    event.preventDefault()
+
+    if (!consumidorSelecionado) return
+
+    const formData = new FormData(formLiberarPagamento)
     const response = await fetch('/chat/liberar-finalizacao', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ contratante_id: consumidorSelecionado })
+        body: JSON.stringify({
+            contratante_id: consumidorSelecionado,
+            valor_servico: formData.get('valor_servico'),
+            nome_recebedor: formData.get('nome_recebedor'),
+            tipo_chave_pix: formData.get('tipo_chave_pix'),
+            chave_pix: formData.get('chave_pix'),
+            descricao_pagamento: formData.get('descricao_pagamento')
+        })
     })
     const data = await response.json().catch(() => ({}))
 
@@ -330,6 +396,7 @@ botaoLiberar.addEventListener('click', async () => {
     statusTexto.textContent = 'Finalização liberada para o consumidor.'
     botaoLiberar.disabled = true
     botaoLiberar.textContent = 'Finalização já liberada'
+    fecharModalPagamento()
     carregarSolicitacoes()
 })
 

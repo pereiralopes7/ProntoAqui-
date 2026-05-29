@@ -68,6 +68,7 @@
 <section class="perfil-card" id="servico-status-card">
 <h3>Finalização do serviço</h3>
 <p id="servico-status-texto">Aguardando o prestador liberar a finalização do serviço.</p>
+<p id="servico-valor-texto" hidden></p>
 <button class="btn-amarelo" id="botao-liberar-finalizacao" type="button" hidden>Liberar finalização do serviço</button>
 </section>
 
@@ -86,6 +87,7 @@ const perfilProprioCard = document.getElementById('perfil-proprio-card')
 const chatCard = document.getElementById('chat-card')
 const servicoStatusCard = document.getElementById('servico-status-card')
 const servicoStatusTexto = document.getElementById('servico-status-texto')
+const servicoValorTexto = document.getElementById('servico-valor-texto')
 const botaoLiberarFinalizacao = document.getElementById('botao-liberar-finalizacao')
 const finalizacaoRodape = document.getElementById('finalizacao-rodape')
 const botaoFinalizarServico = document.getElementById('botao-finalizar-servico')
@@ -162,6 +164,7 @@ function bloquearChat(mensagem) {
 function ocultarFinalizacao(mensagem = '') {
     servicoStatusCard.hidden = false
     servicoStatusTexto.textContent = mensagem || 'A finalização do serviço será liberada pelo prestador após o combinado pelo chat.'
+    servicoValorTexto.hidden = true
     botaoLiberarFinalizacao.hidden = true
     finalizacaoRodape.hidden = true
 }
@@ -272,6 +275,7 @@ function aplicarStatusServico(status) {
     botaoLiberarFinalizacao.hidden = true
     finalizacaoRodape.hidden = true
     botaoFinalizarServico.disabled = true
+    servicoValorTexto.hidden = true
     servicoStatusCard.hidden = false
 
     if (!status) {
@@ -290,6 +294,10 @@ function aplicarStatusServico(status) {
             : 'Finalização liberada pelo prestador.'
 
         if (usuarioEhConsumidor(usuarioLogado)) {
+            if (status.valor_servico) {
+                servicoValorTexto.textContent = `Valor: ${formatarMoeda(status.valor_servico)}`
+                servicoValorTexto.hidden = false
+            }
             finalizacaoRodape.hidden = false
             botaoFinalizarServico.disabled = !status.pode_finalizar
         }
@@ -455,35 +463,30 @@ botaoLiberarFinalizacao.addEventListener('click', async () => {
     }
 })
 
+function formatarMoeda(valor) {
+    const numero = Number(String(valor || '').replace(',', '.'))
+
+    if (!Number.isFinite(numero)) {
+        return 'R$ 0,00'
+    }
+
+    return numero.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    })
+}
+
 botaoFinalizarServico.addEventListener('click', async () => {
     if (botaoFinalizarServico.disabled) {
         return
     }
 
-    try {
-        const response = await fetch('/chat/finalizar-servico', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                prestador_id: profissional.id
-            })
-        })
-        const data = await response.json().catch(() => ({}))
-
-        if (!response.ok) {
-            console.error('Erro ao finalizar serviço:', response.status, data)
-            servicoStatusTexto.textContent = data.erro || 'Não foi possível finalizar o serviço.'
-            return
-        }
-
-        aplicarStatusServico(data.servico)
-    } catch (error) {
-        console.error('Erro ao finalizar serviço:', error)
-        servicoStatusTexto.textContent = 'Não foi possível finalizar o serviço.'
+    if (!statusServicoAtual?.conversa_id) {
+        servicoStatusTexto.textContent = 'Não foi possível localizar a conversa para pagamento.'
+        return
     }
+
+    window.location.href = `pagamento.html?conversa_id=${encodeURIComponent(statusServicoAtual.conversa_id)}`
 })
 </script>
 

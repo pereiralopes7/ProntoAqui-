@@ -137,6 +137,13 @@ def preparar_status_response(status, usuario, prestador_id):
     }
 
 
+def verificar_conversa_existente(usuario_1, usuario_2):
+    try:
+        return bool(buscar_historico(usuario_1, usuario_2))
+    except ValueError:
+        return False
+
+
 def emitir_mensagem_socket(mensagem):
     socketio = current_app.extensions.get("socketio")
 
@@ -393,11 +400,24 @@ def liberar_finalizacao_servico():
         return jsonify({"erro": "Você não pode liberar finalização para si mesmo."}), 400
 
     try:
-        status = liberar_finalizacao(contratante_id, prestador_id)
+        if not verificar_conversa_existente(contratante_id, prestador_id):
+            return jsonify({"erro": "Não existe conversa entre este contratante e prestador."}), 403
+
+        status = liberar_finalizacao(
+            contratante_id,
+            prestador_id,
+            data.get("valor_servico"),
+            data.get("nome_recebedor"),
+            data.get("tipo_chave_pix"),
+            data.get("chave_pix"),
+            data.get("descricao_pagamento"),
+        )
         return jsonify({
-            "mensagem": "Finalização liberada pelo prestador.",
+            "mensagem": "Finalização liberada para o consumidor.",
             "servico": preparar_status_response(status, usuario, prestador_id),
         }), 200
+    except ValueError as e:
+        return jsonify({"erro": str(e)}), 400
     except Exception as e:
         print("Erro ao liberar finalização:", e)
         return jsonify({"erro": str(e)}), 500

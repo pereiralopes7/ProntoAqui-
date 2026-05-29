@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pagamento do serviço</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+
+<body>
+
+<div class="btn-voltar" onclick="history.back()">← Voltar</div>
+
+<main class="pagamento-container">
+<section class="perfil-card pagamento-card">
+    <h1>Pagamento do serviço</h1>
+    <p class="subtitulo">Escaneie o QR Code para realizar o pagamento.</p>
+
+    <div id="pagamento-dados" class="pagamento-dados">
+        <p>Carregando dados do pagamento...</p>
+    </div>
+
+    <div id="qrcode" class="qrcode-box"></div>
+
+    <p class="texto-apoio">
+        Este QR Code é uma simulação para apresentação. A integração Pix real será implementada futuramente.
+    </p>
+
+    <button class="btn-amarelo pagamento-confirmar" id="confirmar-pagamento" type="button" disabled>
+        Confirmar pagamento e finalizar serviço
+    </button>
+    <button class="btn-secundario pagamento-voltar" type="button" onclick="history.back()">Voltar</button>
+</section>
+</main>
+
+<script>
+const token = localStorage.getItem('token')
+const params = new URLSearchParams(window.location.search)
+const conversaId = params.get('conversa_id')
+const dadosContainer = document.getElementById('pagamento-dados')
+const confirmarBtn = document.getElementById('confirmar-pagamento')
+const qrcodeContainer = document.getElementById('qrcode')
+
+let pagamentoAtual = null
+
+function escaparHtml(valor) {
+    return String(valor || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;')
+}
+
+function formatarMoeda(valor) {
+    const numero = Number(String(valor || '').replace(',', '.'))
+
+    if (!Number.isFinite(numero)) {
+        return 'R$ 0,00'
+    }
+
+    return numero.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    })
+}
+
+function mostrarErro(mensagem) {
+    dadosContainer.innerHTML = `<p>${escaparHtml(mensagem)}</p>`
+    confirmarBtn.disabled = true
+}
+
+function montarTextoQrCode(dados) {
+    return [
+        'ProntoAqui - Pagamento de serviço',
+        `Recebedor: ${dados.nome_recebedor}`,
+        `Tipo da chave Pix: ${dados.tipo_chave_pix}`,
+        `Chave Pix: ${dados.chave_pix}`,
+        `Valor: ${formatarMoeda(dados.valor_servico)}`,
+        `Descrição: ${dados.descricao_pagamento || 'Pagamento de serviço pelo ProntoAqui'}`,
+        `Conversa: ${dados.conversa_id}`
+    ].join('\n')
+}
+
+function renderizarPagamento(dados) {
+    pagamentoAtual = dados
+    dadosContainer.innerHTML = `
+        <p><strong>Recebedor:</strong> ${escaparHtml(dados.nome_recebedor)}</p>
+        <p><strong>Valor:</strong> ${formatarMoeda(dados.valor_servico)}</p>
+        <p><strong>Tipo da chave Pix:</strong> ${escaparHtml(dados.tipo_chave_pix)}</p>
+        <p><strong>Chave Pix:</strong> ${escaparHtml(dados.chave_pix)}</p>
+        <p><strong>Descrição:</strong> ${escaparHtml(dados.descricao_pagamento || 'Pagamento de serviço pelo ProntoAqui')}</p>
+    `
+
+    qrcodeContainer.innerHTML = ''
+    new QRCode(qrcodeContainer, {
+        text: montarTextoQrCode(dados),
+        width: 220,
+        height: 220,
+    })
+
+    confirmarBtn.disabled = dados.status === 'finalizado'
+    confirmarBtn.textContent = dados.status === 'finalizado'
+        ? 'Serviço finalizado com sucesso'
+        : 'Confirmar pagamento e finalizar serviço'
+}
+
+async function carregarPagamento() {
+    if (!token) {
+        window.location.href = 'login.html'
+        return
+    }
+
+    if (!conversaId) {
+        mostrarErro('Conversa não informada.')
+        return
+    }
+
+    const response = await fetch(`/pagamento/dados/${encodeURIComponent(conversaId)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+        console.error('Erro ao carregar pagamento:', response.status, data)
+        mostrarErro(data.erro || 'Não foi possível carregar os dados do pagamento.')
+        return
+    }
+
+    renderizarPagamento(data)
+}
+
+confirmarBtn.addEventListener('click', async () => {
+    if (!pagamentoAtual || confirmarBtn.disabled) return
+
+    const response = await fetch('/pagamento/confirmar', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ conversa_id: pagamentoAtual.conversa_id })
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+        console.error('Erro ao confirmar pagamento:', response.status, data)
+        mostrarErro(data.erro || 'Não foi possível confirmar o pagamento.')
+        return
+    }
+
+    confirmarBtn.disabled = true
+    confirmarBtn.textContent = 'Serviço finalizado com sucesso'
+    dadosContainer.insertAdjacentHTML(
+        'beforeend',
+        '<p><strong>Pagamento confirmado e serviço finalizado com sucesso.</strong></p>'
+    )
+})
+
+carregarPagamento()
+</script>
+
+</body>
+</html>
