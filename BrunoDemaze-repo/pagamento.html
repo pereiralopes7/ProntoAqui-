@@ -18,11 +18,22 @@
     <h1>Pagamento do serviço</h1>
     <p class="subtitulo">Escaneie o QR Code para realizar o pagamento.</p>
 
+    <div id="pagamento-mensagem" class="pagamento-mensagem" role="status"></div>
+
     <div id="pagamento-dados" class="pagamento-dados">
         <p>Carregando dados do pagamento...</p>
     </div>
 
-    <div id="qrcode" class="qrcode-box"></div>
+    <div id="qrcode" class="qrcode-box" aria-label="QR Code do pagamento"></div>
+
+    <label class="codigo-pagamento-label" for="codigo-pagamento-texto">
+        Dados para pagamento
+    </label>
+    <textarea id="codigo-pagamento-texto" readonly placeholder="Os dados do pagamento aparecerão aqui."></textarea>
+
+    <button class="btn-secundario pagamento-copiar" id="copiar-pagamento" type="button" disabled>
+        Copiar dados do pagamento
+    </button>
 
     <p class="texto-apoio">
         Este QR Code é uma simulação para apresentação. A integração Pix real será implementada futuramente.
@@ -41,9 +52,13 @@ const params = new URLSearchParams(window.location.search)
 const conversaId = params.get('conversa_id')
 const dadosContainer = document.getElementById('pagamento-dados')
 const confirmarBtn = document.getElementById('confirmar-pagamento')
+const copiarBtn = document.getElementById('copiar-pagamento')
 const qrcodeContainer = document.getElementById('qrcode')
+const codigoPagamentoTexto = document.getElementById('codigo-pagamento-texto')
+const mensagemPagamento = document.getElementById('pagamento-mensagem')
 
 let pagamentoAtual = null
+let textoPagamento = ''
 
 function escaparHtml(valor) {
     return String(valor || '')
@@ -54,11 +69,16 @@ function escaparHtml(valor) {
         .replaceAll("'", '&#039;')
 }
 
+function textoOuPadrao(valor, padrao) {
+    const texto = String(valor || '').trim()
+    return texto || padrao
+}
+
 function formatarMoeda(valor) {
     const numero = Number(String(valor || '').replace(',', '.'))
 
     if (!Number.isFinite(numero)) {
-        return 'R$ 0,00'
+        return 'Valor não informado'
     }
 
     return numero.toLocaleString('pt-BR', {
@@ -67,39 +87,111 @@ function formatarMoeda(valor) {
     })
 }
 
+function mostrarMensagem(mensagem, erro = false) {
+    mensagemPagamento.textContent = mensagem
+    mensagemPagamento.classList.toggle('is-error', erro)
+}
+
 function mostrarErro(mensagem) {
+    mostrarMensagem(mensagem, true)
     dadosContainer.innerHTML = `<p>${escaparHtml(mensagem)}</p>`
+    qrcodeContainer.innerHTML = '<p>Não foi possível gerar o QR Code.</p>'
+    codigoPagamentoTexto.value = ''
+    copiarBtn.disabled = true
     confirmarBtn.disabled = true
 }
 
-function montarTextoQrCode(dados) {
+function montarTextoPagamento(dados) {
+    const nomeRecebedor = textoOuPadrao(dados.nome_recebedor, 'Recebedor não informado')
+    const tipoChavePix = textoOuPadrao(dados.tipo_chave_pix, 'Tipo da chave Pix não informado')
+    const chavePix = textoOuPadrao(dados.chave_pix, '')
+    const valorFormatado = formatarMoeda(dados.valor_servico)
+    const descricaoPagamento = textoOuPadrao(dados.descricao_pagamento, 'Pagamento de serviço pelo ProntoAqui')
+
     return [
         'ProntoAqui - Pagamento de serviço',
-        `Recebedor: ${dados.nome_recebedor}`,
-        `Tipo da chave Pix: ${dados.tipo_chave_pix}`,
-        `Chave Pix: ${dados.chave_pix}`,
-        `Valor: ${formatarMoeda(dados.valor_servico)}`,
-        `Descrição: ${dados.descricao_pagamento || 'Pagamento de serviço pelo ProntoAqui'}`,
+        `Recebedor: ${nomeRecebedor}`,
+        `Tipo da chave Pix: ${tipoChavePix}`,
+        `Chave Pix: ${chavePix}`,
+        `Valor: ${valorFormatado}`,
+        `Descrição: ${descricaoPagamento}`,
         `Conversa: ${dados.conversa_id}`
     ].join('\n')
 }
 
+function validarDadosParaQrCode(dados) {
+    if (!String(dados.nome_recebedor || '').trim()) {
+        return 'Recebedor não informado pelo prestador.'
+    }
+
+    if (!String(dados.valor_servico || '').trim()) {
+        return 'Valor não informado pelo prestador.'
+    }
+
+    if (!String(dados.chave_pix || '').trim()) {
+        return 'Chave Pix não informada pelo prestador.'
+    }
+
+    return ''
+}
+
+function gerarQrCode() {
+    qrcodeContainer.innerHTML = ''
+
+    if (typeof QRCode === 'undefined') {
+        qrcodeContainer.innerHTML = '<p>Erro ao carregar gerador de QR Code. Verifique a conexão.</p>'
+        mostrarMensagem('Erro ao carregar gerador de QR Code. Verifique a conexão.', true)
+        return
+    }
+
+    try {
+        new QRCode(qrcodeContainer, {
+            text: textoPagamento,
+            width: 220,
+            height: 220,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.H
+        })
+    } catch (error) {
+        console.error('Erro ao gerar QR Code:', error)
+        qrcodeContainer.innerHTML = '<p>Não foi possível gerar o QR Code.</p>'
+        mostrarMensagem('Não foi possível gerar o QR Code.', true)
+    }
+}
+
 function renderizarPagamento(dados) {
     pagamentoAtual = dados
+
+    const nomeRecebedor = textoOuPadrao(dados.nome_recebedor, 'Recebedor não informado')
+    const tipoChavePix = textoOuPadrao(dados.tipo_chave_pix, 'Tipo da chave Pix não informado')
+    const chavePix = textoOuPadrao(dados.chave_pix, 'Chave Pix não informada')
+    const descricaoPagamento = textoOuPadrao(dados.descricao_pagamento, 'Pagamento de serviço pelo ProntoAqui')
+    const valorFormatado = formatarMoeda(dados.valor_servico)
+
     dadosContainer.innerHTML = `
-        <p><strong>Recebedor:</strong> ${escaparHtml(dados.nome_recebedor)}</p>
-        <p><strong>Valor:</strong> ${formatarMoeda(dados.valor_servico)}</p>
-        <p><strong>Tipo da chave Pix:</strong> ${escaparHtml(dados.tipo_chave_pix)}</p>
-        <p><strong>Chave Pix:</strong> ${escaparHtml(dados.chave_pix)}</p>
-        <p><strong>Descrição:</strong> ${escaparHtml(dados.descricao_pagamento || 'Pagamento de serviço pelo ProntoAqui')}</p>
+        <p><strong>Recebedor:</strong> ${escaparHtml(nomeRecebedor)}</p>
+        <p><strong>Valor:</strong> ${escaparHtml(valorFormatado)}</p>
+        <p><strong>Tipo da chave Pix:</strong> ${escaparHtml(tipoChavePix)}</p>
+        <p><strong>Chave Pix:</strong> ${escaparHtml(chavePix)}</p>
+        <p><strong>Descrição:</strong> ${escaparHtml(descricaoPagamento)}</p>
     `
 
-    qrcodeContainer.innerHTML = ''
-    new QRCode(qrcodeContainer, {
-        text: montarTextoQrCode(dados),
-        width: 220,
-        height: 220,
-    })
+    textoPagamento = montarTextoPagamento(dados)
+    codigoPagamentoTexto.value = textoPagamento
+    copiarBtn.disabled = false
+
+    const erroValidacao = validarDadosParaQrCode(dados)
+
+    if (erroValidacao) {
+        qrcodeContainer.innerHTML = '<p>Não foi possível gerar o QR Code.</p>'
+        mostrarMensagem(erroValidacao, true)
+        confirmarBtn.disabled = true
+        return
+    }
+
+    mostrarMensagem('')
+    gerarQrCode()
 
     confirmarBtn.disabled = dados.status === 'finalizado'
     confirmarBtn.textContent = dados.status === 'finalizado'
@@ -132,6 +224,39 @@ async function carregarPagamento() {
     renderizarPagamento(data)
 }
 
+async function copiarDadosPagamento() {
+    if (!textoPagamento) {
+        mostrarMensagem('Não há dados de pagamento para copiar.', true)
+        return
+    }
+
+    try {
+        await navigator.clipboard.writeText(textoPagamento)
+        mostrarMensagem('Dados do pagamento copiados com sucesso.')
+        return
+    } catch (error) {
+        console.error('Erro ao copiar dados:', error)
+    }
+
+    try {
+        const textarea = document.createElement('textarea')
+        textarea.value = textoPagamento
+        textarea.setAttribute('readonly', '')
+        textarea.style.position = 'fixed'
+        textarea.style.left = '-9999px'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+        mostrarMensagem('Dados do pagamento copiados com sucesso.')
+    } catch (fallbackError) {
+        console.error('Erro no fallback de cópia:', fallbackError)
+        mostrarMensagem('Não foi possível copiar os dados. Copie manualmente as informações exibidas na tela.', true)
+    }
+}
+
+copiarBtn.addEventListener('click', copiarDadosPagamento)
+
 confirmarBtn.addEventListener('click', async () => {
     if (!pagamentoAtual || confirmarBtn.disabled) return
 
@@ -147,16 +272,13 @@ confirmarBtn.addEventListener('click', async () => {
 
     if (!response.ok) {
         console.error('Erro ao confirmar pagamento:', response.status, data)
-        mostrarErro(data.erro || 'Não foi possível confirmar o pagamento.')
+        mostrarMensagem(data.erro || 'Não foi possível confirmar o pagamento.', true)
         return
     }
 
     confirmarBtn.disabled = true
     confirmarBtn.textContent = 'Serviço finalizado com sucesso'
-    dadosContainer.insertAdjacentHTML(
-        'beforeend',
-        '<p><strong>Pagamento confirmado e serviço finalizado com sucesso.</strong></p>'
-    )
+    mostrarMensagem('Pagamento confirmado e serviço finalizado com sucesso.')
 })
 
 carregarPagamento()

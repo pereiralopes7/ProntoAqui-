@@ -113,7 +113,7 @@ def dados_pagamento(conversa_id):
         return jsonify({"erro": "Você não tem acesso a este pagamento."}), 403
 
     if not status.get("finalizacao_liberada"):
-        return jsonify({"erro": "Pagamento ainda não liberado pelo prestador."}), 400
+        return jsonify({"erro": "Pagamento ainda não liberado pelo prestador."}), 403
 
     return jsonify(montar_payload_pagamento(status)), 200
 
@@ -146,7 +146,7 @@ def confirmar_pagamento():
         return jsonify({"erro": "Apenas o contratante desta conversa pode confirmar o pagamento."}), 403
 
     if not status.get("finalizacao_liberada"):
-        return jsonify({"erro": "Pagamento ainda não liberado pelo prestador."}), 400
+        return jsonify({"erro": "Pagamento ainda não liberado pelo prestador."}), 403
 
     try:
         status_finalizado = finalizar_servico(status["contratante_id"], status["prestador_id"])

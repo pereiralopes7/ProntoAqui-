@@ -781,7 +781,7 @@ margin-bottom:10px;
 }
 
 .pagamento-card {
-    width: min(560px, 100%);
+    width: min(420px, 100%);
     text-align: center;
 }
 
@@ -792,22 +792,69 @@ margin-bottom:10px;
     text-align: left;
 }
 
+.pagamento-mensagem {
+    min-height: 22px;
+    margin: 10px 0;
+    color: #f2c94c;
+    font-weight: bold;
+}
+
+.pagamento-mensagem.is-error {
+    color: #ffdddd;
+}
+
 .qrcode-box {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 250px;
-    min-height: 250px;
+    height: 250px;
     margin: 18px auto;
     padding: 15px;
     border-radius: 8px;
     background: #ffffff;
+    color: #222;
+}
+
+.qrcode-box canvas,
+.qrcode-box img {
+    display: block;
+    width: 220px !important;
+    height: 220px !important;
+}
+
+.codigo-pagamento-label {
+    display: block;
+    margin: 16px 0 8px;
+    text-align: left;
+    font-weight: bold;
+}
+
+#codigo-pagamento-texto {
+    width: 100%;
+    min-height: 150px;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    line-height: 1.35;
+    color: #222;
+    background: #f7f7f7;
+    resize: vertical;
 }
 
 .pagamento-confirmar,
+.pagamento-copiar,
 .pagamento-voltar {
     width: min(320px, 100%);
     margin: 8px auto 0;
+    min-height: 48px;
+    font-size: 15px;
+}
+
+.pagamento-copiar {
+    color: #222;
+    background: #eeeeee;
 }
 
 .servico-item p{
