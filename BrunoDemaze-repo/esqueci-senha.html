@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Esqueci a senha</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<div class="btn-voltar" onclick="history.back()">
+Voltar
+</div>
+
+<section class="auth-container">
+<form class="auth-box" id="recuperar-senha-form" novalidate>
+<h2>Esqueci a senha</h2>
+
+<div id="etapa-email">
+    <input id="recuperacao-email" type="email" placeholder="Email" autocomplete="email" required>
+    <button class="btn-amarelo" id="enviar-codigo" type="button">Enviar código de verificação</button>
+</div>
+
+<div id="etapa-codigo" hidden>
+    <input id="recuperacao-codigo" type="text" inputmode="numeric" maxlength="6" placeholder="Código de verificação" required>
+    <button class="btn-amarelo" id="verificar-codigo" type="button">Verificar código</button>
+</div>
+
+<div id="etapa-senha" hidden>
+    <input id="nova-senha" type="password" placeholder="Nova senha" autocomplete="new-password" required>
+    <input id="confirmar-nova-senha" type="password" placeholder="Confirmar nova senha" autocomplete="new-password" required>
+    <button class="btn-amarelo" id="alterar-senha" type="submit">Alterar senha</button>
+</div>
+
+<p class="auth-link">
+Lembrou a senha? <a href="login.html">Entrar</a>
+</p>
+</form>
+</section>
+
+<div class="status-popup" id="status-popup"></div>
+
+<script>
+const form = document.getElementById("recuperar-senha-form");
+const statusPopup = document.getElementById("status-popup");
+const etapaEmail = document.getElementById("etapa-email");
+const etapaCodigo = document.getElementById("etapa-codigo");
+const etapaSenha = document.getElementById("etapa-senha");
+const emailInput = document.getElementById("recuperacao-email");
+const codigoInput = document.getElementById("recuperacao-codigo");
+const novaSenhaInput = document.getElementById("nova-senha");
+const confirmarNovaSenhaInput = document.getElementById("confirmar-nova-senha");
+const enviarCodigoButton = document.getElementById("enviar-codigo");
+const verificarCodigoButton = document.getElementById("verificar-codigo");
+
+let emailRecuperacao = "";
+let codigoVerificado = "";
+
+function showPopup(message, isError = false) {
+    statusPopup.textContent = message;
+    statusPopup.classList.toggle("is-error", isError);
+    statusPopup.classList.add("is-visible");
+
+    clearTimeout(showPopup.timeoutId);
+    showPopup.timeoutId = setTimeout(() => {
+        statusPopup.classList.remove("is-visible");
+    }, 4500);
+}
+
+function mostrarEtapa(etapa) {
+    etapaEmail.hidden = etapa !== "email";
+    etapaCodigo.hidden = etapa !== "codigo";
+    etapaSenha.hidden = etapa !== "senha";
+}
+
+async function enviarCodigo() {
+    const email = emailInput.value.trim();
+
+    if (!email) {
+        showPopup("Informe o email.", true);
+        return;
+    }
+
+    enviarCodigoButton.disabled = true;
+
+    try {
+        const resposta = await fetch("/auth/forgot-password/send-code", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ email })
+        });
+
+        const data = await resposta.json().catch(() => ({}));
+
+        if (!resposta.ok) {
+            console.error("Erro ao enviar código de recuperação:", resposta.status, data);
+            showPopup(data.erro || "Não foi possível enviar o código.", true);
+            return;
+        }
+
+        emailRecuperacao = email;
+        codigoVerificado = "";
+
+        if (data.codigo_teste) {
+            alert("Código de recuperação para teste: " + data.codigo_teste);
+            showPopup("Código gerado. Cole no campo de verificação.");
+        } else {
+            showPopup("Código enviado para o email.");
+        }
+
+        mostrarEtapa("codigo");
+        codigoInput.focus();
+    } catch (error) {
+        console.error("Erro de conexão ao enviar código:", error);
+        showPopup("Erro ao conectar com o servidor. Tente novamente.", true);
+    } finally {
+        enviarCodigoButton.disabled = false;
+    }
+}
+
+async function verificarCodigo() {
+    const codigo = codigoInput.value.trim();
+
+    if (!emailRecuperacao) {
+        mostrarEtapa("email");
+        showPopup("Informe o email novamente.", true);
+        return;
+    }
+
+    if (!codigo) {
+        showPopup("Informe o código de verificação.", true);
+        return;
+    }
+
+    verificarCodigoButton.disabled = true;
+
+    try {
+        const resposta = await fetch("/auth/forgot-password/verify-code", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                email: emailRecuperacao,
+                codigo
+            })
+        });
+
+        const data = await resposta.json().catch(() => ({}));
+
+        if (!resposta.ok) {
+            console.error("Erro ao verificar código de recuperação:", resposta.status, data);
+            showPopup(data.erro || "Código inválido.", true);
+            return;
+        }
+
+        codigoVerificado = codigo;
+        showPopup("Código verificado com sucesso.");
+        mostrarEtapa("senha");
+        novaSenhaInput.focus();
+    } catch (error) {
+        console.error("Erro de conexão ao verificar código:", error);
+        showPopup("Erro ao conectar com o servidor. Tente novamente.", true);
+    } finally {
+        verificarCodigoButton.disabled = false;
+    }
+}
+
+async function alterarSenha(event) {
+    event.preventDefault();
+
+    const novaSenha = novaSenhaInput.value;
+    const confirmarNovaSenha = confirmarNovaSenhaInput.value;
+
+    if (!codigoVerificado) {
+        mostrarEtapa("codigo");
+        showPopup("Verifique o código antes de alterar a senha.", true);
+        return;
+    }
+
+    if (novaSenha.length < 6) {
+        showPopup("A nova senha deve ter pelo menos 6 caracteres.", true);
+        return;
+    }
+
+    if (novaSenha !== confirmarNovaSenha) {
+        showPopup("As senhas não conferem.", true);
+        return;
+    }
+
+    try {
+        const resposta = await fetch("/auth/forgot-password/reset", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                email: emailRecuperacao,
+                codigo: codigoVerificado,
+                nova_senha: novaSenha
+            })
+        });
+
+        const data = await resposta.json().catch(() => ({}));
+
+        if (!resposta.ok) {
+            console.error("Erro ao alterar senha:", resposta.status, data);
+            showPopup(data.erro || "Não foi possível alterar a senha.", true);
+            return;
+        }
+
+        showPopup(data.msg || "Senha alterada com sucesso.");
+
+        setTimeout(() => {
+            window.location.href = "login.html";
+        }, 1200);
+    } catch (error) {
+        console.error("Erro de conexão ao alterar senha:", error);
+        showPopup("Erro ao conectar com o servidor. Tente novamente.", true);
+    }
+}
+
+enviarCodigoButton.addEventListener("click", enviarCodigo);
+verificarCodigoButton.addEventListener("click", verificarCodigo);
+form.addEventListener("submit", alterarSenha);
+mostrarEtapa("email");
+</script>
+
+</body>
+</html>

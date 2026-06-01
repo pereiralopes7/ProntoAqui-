@@ -228,6 +228,36 @@ def criar_tabela_codigos_verificacao(cursor):
     """)
 
 
+def criar_tabela_codigos_recuperacao_senha(cursor):
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS codigos_recuperacao_senha (
+        id_codigo INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        codigo TEXT NOT NULL,
+        expiracao DATETIME NOT NULL,
+        verificado INTEGER DEFAULT 0,
+        usado INTEGER DEFAULT 0
+    )
+    """)
+
+    cursor.execute("PRAGMA table_info(codigos_recuperacao_senha)")
+    colunas = [coluna[1] for coluna in cursor.fetchall()]
+
+    if "usado" not in colunas:
+        cursor.execute("ALTER TABLE codigos_recuperacao_senha ADD COLUMN usado INTEGER DEFAULT 0")
+
+
+def buscar_usuario_por_email(cursor, email):
+    cursor.execute("""
+        SELECT id_usuario, email
+        FROM usuarios
+        WHERE lower(email) = lower(?)
+        LIMIT 1
+    """, (email,))
+
+    return cursor.fetchone()
+
+
 def enviar_email_codigo(destinatario, codigo):
     email_remetente = os.getenv("EMAIL_REMETENTE")
     senha_app = os.getenv("SENHA_APP_EMAIL")
@@ -344,3 +374,177 @@ def verificar_codigo():
     conn.close()
 
     return jsonify({"msg": "Código verificado com sucesso"}), 200
+
+
+@auth.route("/forgot-password/send-code", methods=["POST"])
+def enviar_codigo_recuperacao_senha():
+    data = request.json or {}
+    email = str(data.get("email") or "").strip()
+
+    if not email:
+        return jsonify({"erro": "Email é obrigatório"}), 400
+
+    codigo = str(random.randint(100000, 999999))
+    expiracao = datetime.now() + timedelta(minutes=10)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        criar_tabela_codigos_recuperacao_senha(cursor)
+
+        if not buscar_usuario_por_email(cursor, email):
+            return jsonify({"erro": "E-mail não encontrado."}), 404
+
+        cursor.execute("""
+            INSERT INTO codigos_recuperacao_senha (
+                email, codigo, expiracao, verificado, usado
+            )
+            VALUES (?, ?, ?, 0, 0)
+        """, (email, codigo, expiracao.isoformat()))
+
+        conn.commit()
+
+    finally:
+        conn.close()
+
+    try:
+        enviar_email_codigo(email, codigo)
+
+        return jsonify({
+            "msg": "Código enviado para o email"
+        }), 200
+
+    except Exception as e:
+        print("Erro ao enviar email de recuperação:", e)
+        print("Código de recuperação para teste:", codigo)
+
+        return jsonify({
+            "msg": "Modo teste: código gerado com sucesso",
+            "codigo_teste": codigo
+        }), 200
+
+
+@auth.route("/forgot-password/verify-code", methods=["POST"])
+def verificar_codigo_recuperacao_senha():
+    data = request.json or {}
+    email = str(data.get("email") or "").strip()
+    codigo = str(data.get("codigo") or "").strip()
+
+    if not email or not codigo:
+        return jsonify({"erro": "Email e código são obrigatórios"}), 400
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        criar_tabela_codigos_recuperacao_senha(cursor)
+
+        cursor.execute("""
+            SELECT id_codigo, expiracao, usado
+            FROM codigos_recuperacao_senha
+            WHERE lower(email) = lower(?) AND codigo = ?
+            ORDER BY id_codigo DESC
+            LIMIT 1
+        """, (email, codigo))
+
+        registro = cursor.fetchone()
+
+        if not registro:
+            return jsonify({"erro": "Código inválido"}), 400
+
+        if registro["usado"]:
+            return jsonify({"erro": "Código já utilizado"}), 400
+
+        expiracao = datetime.fromisoformat(registro["expiracao"])
+
+        if datetime.now() > expiracao:
+            return jsonify({"erro": "Código expirado"}), 400
+
+        cursor.execute("""
+            UPDATE codigos_recuperacao_senha
+            SET verificado = 1
+            WHERE id_codigo = ?
+        """, (registro["id_codigo"],))
+
+        conn.commit()
+
+    finally:
+        conn.close()
+
+    return jsonify({"msg": "Código verificado com sucesso"}), 200
+
+
+@auth.route("/forgot-password/reset", methods=["POST"])
+def redefinir_senha():
+    data = request.json or {}
+    email = str(data.get("email") or "").strip()
+    codigo = str(data.get("codigo") or "").strip()
+    nova_senha = str(data.get("nova_senha") or "")
+
+    if not email or not codigo or not nova_senha:
+        return jsonify({"erro": "Email, código e nova senha são obrigatórios"}), 400
+
+    if len(nova_senha) < 6:
+        return jsonify({"erro": "A nova senha deve ter pelo menos 6 caracteres."}), 400
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        criar_tabela_codigos_recuperacao_senha(cursor)
+
+        usuario = buscar_usuario_por_email(cursor, email)
+
+        if not usuario:
+            return jsonify({"erro": "E-mail não encontrado."}), 404
+
+        cursor.execute("""
+            SELECT id_codigo, expiracao, verificado, usado
+            FROM codigos_recuperacao_senha
+            WHERE lower(email) = lower(?) AND codigo = ?
+            ORDER BY id_codigo DESC
+            LIMIT 1
+        """, (email, codigo))
+
+        registro = cursor.fetchone()
+
+        if not registro:
+            return jsonify({"erro": "Código inválido"}), 400
+
+        if registro["usado"]:
+            return jsonify({"erro": "Código já utilizado"}), 400
+
+        if not registro["verificado"]:
+            return jsonify({"erro": "Código ainda não verificado"}), 400
+
+        expiracao = datetime.fromisoformat(registro["expiracao"])
+
+        if datetime.now() > expiracao:
+            return jsonify({"erro": "Código expirado"}), 400
+
+        senha_hash = hash_senha(nova_senha)
+
+        cursor.execute("""
+            UPDATE usuarios
+            SET senha = ?
+            WHERE id_usuario = ?
+        """, (senha_hash, usuario["id_usuario"]))
+
+        cursor.execute("""
+            UPDATE codigos_recuperacao_senha
+            SET usado = 1
+            WHERE id_codigo = ?
+        """, (registro["id_codigo"],))
+
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        print("Erro ao redefinir senha:", str(e))
+        return jsonify({"erro": "Não foi possível alterar a senha."}), 500
+
+    finally:
+        conn.close()
+
+    return jsonify({"msg": "Senha alterada com sucesso."}), 200

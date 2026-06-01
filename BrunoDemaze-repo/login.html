@@ -24,6 +24,10 @@ Voltar
 <button class="btn-amarelo" type="submit">Entrar</button>
 
 <p class="auth-link">
+<a href="esqueci-senha.html">Esqueci a senha</a>
+</p>
+
+<p class="auth-link">
 Não tem uma conta? <a href="cadastro.html">Cadastre-se</a>
 </p>
 </form>
@@ -64,9 +68,10 @@ loginForm.addEventListener("submit", async (event) => {
             body: JSON.stringify({ email, senha })
         });
 
-        const data = await resposta.json();
+        const data = await resposta.json().catch(() => ({}));
 
         if (!resposta.ok) {
+            console.error("Erro no login:", resposta.status, data);
             showPopup(data.erro || "Não foi possível fazer login.", true);
             return;
         }
@@ -90,8 +95,8 @@ loginForm.addEventListener("submit", async (event) => {
         }, 900);
 
     } catch (error) {
-        console.error(error);
-        showPopup("Erro ao conectar com o servidor.", true);
+        console.error("Erro de conexão no login:", error);
+        showPopup("Erro ao conectar com o servidor. Tente novamente.", true);
     }
 });
 </script>
