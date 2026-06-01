@@ -61,5 +61,14 @@
     "texto": "tudo bem",
     "data_envio": "2026-05-26T17:19:56",
     "lida": false
+  },
+  {
+    "id": "5764a4ac-1bd5-4586-b4f9-733e015822e0",
+    "conversa_id": "chat_1_9",
+    "remetente_id": 9,
+    "destinatario_id": 1,
+    "texto": "fala Lucas, tudo bem?",
+    "data_envio": "2026-06-01T17:17:51",
+    "lida": false
   }
 ]
