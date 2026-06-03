@@ -6,7 +6,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Meus Serviços</title>
 <link rel="stylesheet" href="css/style.css">
-<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 </head>
 
 <body>
@@ -18,66 +17,7 @@
 <p class="subtitulo" id="subtitulo-servicos">Acompanhe os serviços que você contratou.</p>
 
 <div id="lista-servicos" class="lista-servicos"></div>
-
-<section class="perfil-card" id="conversa-card" hidden>
-    <h3 id="conversa-titulo">Conversa</h3>
-    <div class="chat-simulado">
-        <div class="chat-messages" id="chat-messages"></div>
-        <textarea id="mensagem-input" placeholder="Digite sua mensagem..." disabled></textarea>
-        <button id="botao-enviar" type="button" disabled>Enviar</button>
-    </div>
 </section>
-
-<section class="perfil-card" id="status-servico-card" hidden>
-    <h3>Status do serviço</h3>
-    <p id="status-servico-texto">Negociação em andamento.</p>
-    <button class="btn-amarelo" id="botao-liberar-finalizacao" type="button" hidden>Liberar finalização do serviço</button>
-</section>
-</section>
-
-<div class="modal-pagamento" id="modal-pagamento" hidden>
-    <form class="modal-pagamento-conteudo" id="form-liberar-pagamento">
-        <h3>Informe os dados para pagamento</h3>
-        <label>
-            Valor do serviço
-            <input id="valor-servico" name="valor_servico" type="text" placeholder="150,00" required>
-        </label>
-        <label>
-            Nome do recebedor
-            <input id="nome-recebedor" name="nome_recebedor" type="text" placeholder="Marcos Silva" required>
-        </label>
-        <label>
-            Tipo da chave Pix
-            <select id="tipo-chave-pix" name="tipo_chave_pix" required>
-                <option value="">Selecione</option>
-                <option value="CPF">CPF</option>
-                <option value="E-mail">E-mail</option>
-                <option value="Telefone">Telefone</option>
-                <option value="Chave aleatória">Chave aleatória</option>
-            </select>
-        </label>
-        <label>
-            Chave Pix
-            <input id="chave-pix" name="chave_pix" type="text" placeholder="marcos@email.com" required>
-        </label>
-        <p class="texto-apoio">
-            Para telefone, prefira DDD + número, exemplo: 19999999999. Para e-mail, use um e-mail cadastrado como chave Pix real. Para CPF, use somente números ou formato válido.
-        </p>
-        <label>
-            Cidade do recebedor
-            <input id="cidade-recebedor" name="cidade_recebedor" type="text" placeholder="Indaiatuba" value="Indaiatuba" required>
-        </label>
-        <label>
-            Descrição do pagamento
-            <textarea id="descricao-pagamento" name="descricao_pagamento" placeholder="Serviço combinado pelo ProntoAqui."></textarea>
-        </label>
-        <p class="texto-apoio">Fluxo de pagamento simulado para apresentação. Integração Pix real será implementada futuramente.</p>
-        <div class="modal-pagamento-acoes">
-            <button class="btn-secundario" id="cancelar-pagamento" type="button">Cancelar</button>
-            <button class="btn-amarelo" type="submit">Liberar finalização</button>
-        </div>
-    </form>
-</div>
 
 <script>
 const token = localStorage.getItem('token')
@@ -85,23 +25,9 @@ const token = localStorage.getItem('token')
 const tituloServicos = document.getElementById('titulo-servicos')
 const subtituloServicos = document.getElementById('subtitulo-servicos')
 const container = document.getElementById('lista-servicos')
-const conversaCard = document.getElementById('conversa-card')
-const conversaTitulo = document.getElementById('conversa-titulo')
-const chatMessages = document.getElementById('chat-messages')
-const messageInput = document.getElementById('mensagem-input')
-const sendButton = document.getElementById('botao-enviar')
-const statusCard = document.getElementById('status-servico-card')
-const statusTexto = document.getElementById('status-servico-texto')
-const botaoLiberar = document.getElementById('botao-liberar-finalizacao')
-const modalPagamento = document.getElementById('modal-pagamento')
-const formLiberarPagamento = document.getElementById('form-liberar-pagamento')
-const cancelarPagamento = document.getElementById('cancelar-pagamento')
 
 let usuarioLogado = null
-let consumidorSelecionado = null
 let solicitacoesAtuais = []
-let idConversa = null
-let socket = null
 let usuarioPrestador = false
 const FOTO_PADRAO = '/img/default-user.svg'
 
@@ -137,26 +63,6 @@ function textoStatus(status) {
     }
     if (status === 'finalizado') return 'Serviço finalizado com sucesso.'
     return 'Negociação em andamento.'
-}
-
-function abrirModalPagamento() {
-    modalPagamento.hidden = false
-}
-
-function fecharModalPagamento() {
-    modalPagamento.hidden = true
-    formLiberarPagamento.reset()
-}
-
-function addMessage(tipo, texto, dataEnvio = '') {
-    const item = document.createElement('div')
-    item.className = `chat-message chat-message-${tipo}`
-    item.innerHTML = `
-        <div class="chat-message-text">${escaparHtml(texto)}</div>
-        ${dataEnvio ? `<span class="chat-message-time">${formatarData(dataEnvio)}</span>` : ''}
-    `
-    chatMessages.appendChild(item)
-    chatMessages.scrollTop = chatMessages.scrollHeight
 }
 
 async function carregarUsuarioLogado() {
@@ -225,7 +131,7 @@ async function carregarSolicitacoes() {
                 <p>Última mensagem: "${escaparHtml(solicitacao.ultima_mensagem)}"</p>
                 <p>Status: ${textoStatus(solicitacao.status_servico)}</p>
                 <p>${formatarData(solicitacao.data_ultima_mensagem)}</p>
-                <button class="btn-amarelo ${usuarioPrestador ? 'abrir-conversa-btn' : 'abrir-perfil-btn'}" type="button" data-outro-id="${solicitacao.outro_usuario_id}">Abrir conversa</button>
+                <button class="btn-amarelo abrir-conversa-btn" type="button" data-outro-id="${solicitacao.outro_usuario_id}">Abrir conversa</button>
             </div>
         `).join('')
     } catch (error) {
@@ -234,34 +140,20 @@ async function carregarSolicitacoes() {
     }
 }
 
-async function abrirConversa(consumidorId, consumidorNome) {
-    consumidorSelecionado = Number(consumidorId)
-    idConversa = gerarIdConversa(usuarioLogado.id, consumidorSelecionado)
-    conversaTitulo.textContent = `Conversa com ${consumidorNome}`
-    conversaCard.hidden = false
-    statusCard.hidden = false
-    messageInput.disabled = false
-    sendButton.disabled = false
-    chatMessages.innerHTML = '<div class="chat-message chat-message-system">Carregando conversa...</div>'
+function abrirConversa(solicitacao) {
+    const outroUsuarioId = Number(solicitacao.outro_usuario_id)
+    const conversaId = solicitacao.conversa_id || gerarIdConversa(usuarioLogado.id, outroUsuarioId)
+    const nome = solicitacao.outro_usuario_nome || 'Conversa'
+    const url = new URL('conversa.html', window.location.href)
 
-    await carregarHistorico()
-    conectarSocket()
-    await carregarStatus()
+    url.searchParams.set('conversa_id', conversaId)
+    url.searchParams.set('usuario_id', String(outroUsuarioId))
+    url.searchParams.set('nome', nome)
+
+    window.location.href = url.pathname + url.search
 }
 
 container.addEventListener('click', (event) => {
-    const botaoPerfil = event.target.closest('.abrir-perfil-btn')
-
-    if (botaoPerfil) {
-        const prestadorId = Number(botaoPerfil.dataset.outroId)
-
-        if (prestadorId) {
-            window.location.href = `/perfil?id=${prestadorId}`
-        }
-
-        return
-    }
-
     const botao = event.target.closest('.abrir-conversa-btn')
 
     if (!botao) return
@@ -271,141 +163,7 @@ container.addEventListener('click', (event) => {
 
     if (!solicitacao) return
 
-    abrirConversa(consumidorId, solicitacao.outro_usuario_nome)
-})
-
-async function carregarHistorico() {
-    const response = await fetch(`/chat/historico/${consumidorSelecionado}`, {
-        headers: { Authorization: `Bearer ${token}` }
-    })
-    const data = await response.json().catch(() => ({}))
-
-    if (!response.ok) {
-        console.error('Erro ao carregar histórico:', response.status, data)
-        chatMessages.innerHTML = `<div class="chat-message chat-message-system">${escaparHtml(data.erro || 'Não foi possível carregar a conversa.')}</div>`
-        return
-    }
-
-    chatMessages.innerHTML = ''
-
-    for (const msg of data.mensagens || []) {
-        const tipo = Number(msg.remetente_id) === Number(usuarioLogado.id) ? 'sent' : 'received'
-        addMessage(tipo, msg.texto, msg.data_envio)
-    }
-}
-
-function conectarSocket() {
-    if (socket) {
-        socket.disconnect()
-    }
-
-    socket = io()
-
-    socket.on('connect', () => {
-        socket.emit('join_chat', {
-            conversa_id: idConversa,
-            remetente_id: usuarioLogado.id,
-            destinatario_id: consumidorSelecionado
-        })
-    })
-
-    socket.on('receive_message', (data) => {
-        if (!data || data.conversa_id !== idConversa) return
-        const tipo = Number(data.remetente_id) === Number(usuarioLogado.id) ? 'sent' : 'received'
-        addMessage(tipo, data.texto, data.data_envio || data.data)
-    })
-}
-
-async function carregarStatus() {
-    const response = await fetch(`/chat/status-servico/${usuarioLogado.id}?contratante_id=${consumidorSelecionado}`, {
-        headers: { Authorization: `Bearer ${token}` }
-    })
-    const data = await response.json().catch(() => ({}))
-
-    if (!response.ok) {
-        console.error('Erro ao carregar status:', response.status, data)
-        statusTexto.textContent = data.erro || 'Não foi possível carregar o status do serviço.'
-        botaoLiberar.hidden = true
-        return
-    }
-
-    statusTexto.textContent = textoStatus(data.status)
-    botaoLiberar.hidden = false
-    botaoLiberar.disabled = !data.pode_liberar
-    botaoLiberar.textContent = data.pode_liberar ? 'Liberar finalização do serviço' : 'Finalização já liberada'
-
-    if (data.status === 'finalizado') {
-        botaoLiberar.textContent = 'Serviço finalizado'
-    }
-}
-
-sendButton.addEventListener('click', () => {
-    const texto = messageInput.value.trim()
-
-    if (!texto || !socket || !consumidorSelecionado) {
-        return
-    }
-
-    socket.emit('send_message', {
-        conversa_id: idConversa,
-        id_conversa: idConversa,
-        id_remetente: usuarioLogado.id,
-        id_destinatario: consumidorSelecionado,
-        texto
-    })
-
-    messageInput.value = ''
-})
-
-messageInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault()
-        sendButton.click()
-    }
-})
-
-botaoLiberar.addEventListener('click', async () => {
-    if (!consumidorSelecionado) return
-    abrirModalPagamento()
-})
-
-cancelarPagamento.addEventListener('click', fecharModalPagamento)
-
-formLiberarPagamento.addEventListener('submit', async (event) => {
-    event.preventDefault()
-
-    if (!consumidorSelecionado) return
-
-    const formData = new FormData(formLiberarPagamento)
-    const response = await fetch('/chat/liberar-finalizacao', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-            contratante_id: consumidorSelecionado,
-            valor_servico: formData.get('valor_servico'),
-            nome_recebedor: formData.get('nome_recebedor'),
-            tipo_chave_pix: formData.get('tipo_chave_pix'),
-            chave_pix: formData.get('chave_pix'),
-            cidade_recebedor: formData.get('cidade_recebedor'),
-            descricao_pagamento: formData.get('descricao_pagamento')
-        })
-    })
-    const data = await response.json().catch(() => ({}))
-
-    if (!response.ok) {
-        console.error('Erro ao liberar finalização:', response.status, data)
-        statusTexto.textContent = data.erro || 'Não foi possível liberar a finalização.'
-        return
-    }
-
-    statusTexto.textContent = 'Finalização liberada para o consumidor.'
-    botaoLiberar.disabled = true
-    botaoLiberar.textContent = 'Finalização já liberada'
-    fecharModalPagamento()
-    carregarSolicitacoes()
+    abrirConversa(solicitacao)
 })
 
 async function iniciar() {

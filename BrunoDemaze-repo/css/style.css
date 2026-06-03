@@ -2164,3 +2164,127 @@ footer {
 .toggle-password.is-visible {
     color: #222;
 }
+
+/* Página dedicada de conversa */
+.chat-page-container {
+    width: min(920px, calc(100% - 32px));
+    min-height: 100vh;
+    min-height: 100svh;
+    display: grid;
+    gap: 18px;
+    align-content: start;
+    margin: 0 auto;
+    padding: 88px 0 36px;
+}
+
+.chat-card,
+.finalizacao-section {
+    width: 100%;
+    border: 1px solid var(--pa-border);
+    border-radius: var(--pa-radius);
+    background: rgba(255, 255, 255, 0.22);
+    box-shadow: var(--pa-shadow);
+    backdrop-filter: blur(10px);
+}
+
+.chat-card {
+    padding: 24px;
+}
+
+.chat-page-kicker {
+    margin-bottom: 6px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.chat-card h1 {
+    margin-bottom: 8px;
+    font-size: clamp(28px, 5vw, 40px);
+    line-height: 1.1;
+}
+
+.chat-card .subtitulo {
+    width: 100%;
+    margin-bottom: 18px;
+    text-align: left;
+}
+
+.chat-page-messages {
+    min-height: 360px;
+    max-height: min(58vh, 540px);
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 14px;
+    background: rgba(15, 32, 42, 0.16);
+}
+
+.chat-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.chat-form textarea {
+    min-height: 56px;
+    margin: 0;
+    border-radius: 12px;
+    color: var(--pa-ink);
+    resize: vertical;
+}
+
+.chat-form .btn-amarelo {
+    width: 132px;
+    align-self: stretch;
+}
+
+.finalizacao-section {
+    display: grid;
+    gap: 10px;
+    padding: 22px 24px;
+}
+
+.finalizacao-section h2 {
+    font-size: 22px;
+    line-height: 1.2;
+}
+
+.finalizacao-section p {
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.45;
+}
+
+.finalizacao-section .btn-amarelo {
+    width: fit-content;
+    min-width: 220px;
+}
+
+@media (max-width: 768px) {
+    .chat-page-container {
+        width: calc(100% - 24px);
+        padding-top: 78px;
+    }
+
+    .chat-card,
+    .finalizacao-section {
+        padding: 18px;
+        border-radius: 18px;
+    }
+
+    .chat-page-messages {
+        min-height: 320px;
+        max-height: 54vh;
+        padding: 10px;
+    }
+
+    .chat-form {
+        grid-template-columns: 1fr;
+    }
+
+    .chat-form .btn-amarelo,
+    .finalizacao-section .btn-amarelo {
+        width: 100%;
+    }
+}
