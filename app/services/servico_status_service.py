@@ -7,6 +7,7 @@ from app.services.pix_service import (
     formatar_valor_pix,
     gerar_pix_copia_cola,
     normalizar_txid,
+    validar_crc_pix,
 )
 
 
@@ -122,6 +123,19 @@ def normalizar_valor_servico(valor):
     return formatar_valor_pix(valor)
 
 
+def normalizar_chave_pix_para_payload(tipo_chave_pix, chave_pix):
+    chave_pix = str(chave_pix or "").strip()
+    tipo_chave_pix = str(tipo_chave_pix or "").strip()
+
+    if tipo_chave_pix == "Telefone" and chave_pix and not chave_pix.startswith("+"):
+        digitos = "".join(char for char in chave_pix if char.isdigit())
+
+        if len(digitos) in (10, 11):
+            return "+55" + digitos
+
+    return chave_pix
+
+
 def validar_dados_pagamento(
     valor_servico,
     nome_recebedor,
@@ -154,8 +168,16 @@ def validar_dados_pagamento(
 
 def garantir_pix_copia_cola(status):
     status = normalizar_status(status)
+    chave_pix_payload = normalizar_chave_pix_para_payload(
+        status.get("tipo_chave_pix"),
+        status.get("chave_pix"),
+    )
 
-    if status.get("pix_copia_cola"):
+    if (
+        status.get("pix_copia_cola")
+        and validar_crc_pix(status.get("pix_copia_cola"))
+        and chave_pix_payload in status.get("pix_copia_cola")
+    ):
         return status
 
     if not status.get("chave_pix"):
@@ -171,7 +193,7 @@ def garantir_pix_copia_cola(status):
     status["descricao_pagamento"] = status.get("descricao_pagamento") or "Servico ProntoAqui"
     status["txid"] = status.get("txid") or gerar_txid_conversa(status["conversa_id"])
     status["pix_copia_cola"] = gerar_pix_copia_cola(
-        status["chave_pix"],
+        chave_pix_payload,
         status["nome_recebedor"],
         status["cidade_recebedor"],
         status["valor_servico"],
@@ -217,8 +239,9 @@ def liberar_finalizacao(
     novo_status = criar_status_padrao(contratante_id, prestador_id)
     descricao_pagamento = str(descricao_pagamento or "").strip() or "Servico ProntoAqui"
     txid = gerar_txid_conversa(novo_status["conversa_id"])
+    chave_pix_payload = normalizar_chave_pix_para_payload(tipo_chave_pix, chave_pix)
     pix_copia_cola = gerar_pix_copia_cola(
-        chave_pix,
+        chave_pix_payload,
         nome_recebedor,
         cidade_recebedor,
         valor_servico,

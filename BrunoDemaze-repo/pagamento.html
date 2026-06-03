@@ -26,17 +26,20 @@
 
     <div id="qrcode" class="qrcode-box" aria-label="QR Code do pagamento"></div>
 
-    <label class="codigo-pagamento-label" for="codigo-pagamento-texto">
+    <label class="codigo-pagamento-label" for="pix-copia-cola">
         Pix Copia e Cola
     </label>
-    <textarea id="codigo-pagamento-texto" readonly placeholder="O Pix Copia e Cola aparecerá aqui."></textarea>
+    <textarea id="pix-copia-cola" readonly placeholder="O Pix Copia e Cola aparecerá aqui."></textarea>
 
-    <button class="btn-secundario pagamento-copiar" id="copiar-pagamento" type="button" disabled>
+    <button class="btn-secundario pagamento-copiar" id="btn-copiar-pix" type="button" disabled>
         Copiar Pix Copia e Cola
     </button>
 
     <p class="texto-apoio">
         Este pagamento é uma simulação para apresentação. A confirmação bancária real será implementada futuramente.
+    </p>
+    <p class="texto-apoio">
+        Se o aplicativo do banco não reconhecer o QR Code, use a opção Copiar Pix Copia e Cola. Em ambiente de apresentação, use uma chave Pix real ou uma chave de teste válida.
     </p>
 
     <button class="btn-amarelo pagamento-confirmar" id="confirmar-pagamento" type="button" disabled>
@@ -52,9 +55,9 @@ const params = new URLSearchParams(window.location.search)
 const conversaId = params.get('conversa_id')
 const dadosContainer = document.getElementById('pagamento-dados')
 const confirmarBtn = document.getElementById('confirmar-pagamento')
-const copiarBtn = document.getElementById('copiar-pagamento')
+const copiarBtn = document.getElementById('btn-copiar-pix')
 const qrcodeContainer = document.getElementById('qrcode')
-const codigoPagamentoTexto = document.getElementById('codigo-pagamento-texto')
+const pixTextarea = document.getElementById('pix-copia-cola')
 const mensagemPagamento = document.getElementById('pagamento-mensagem')
 
 let pagamentoAtual = null
@@ -96,7 +99,7 @@ function mostrarErro(mensagem) {
     mostrarMensagem(mensagem, true)
     dadosContainer.innerHTML = `<p>${escaparHtml(mensagem)}</p>`
     qrcodeContainer.innerHTML = '<p>Não foi possível gerar o QR Code.</p>'
-    codigoPagamentoTexto.value = ''
+    pixTextarea.value = ''
     copiarBtn.disabled = true
     confirmarBtn.disabled = true
 }
@@ -170,7 +173,7 @@ function renderizarPagamento(dados) {
     `
 
     pixCopiaCola = String(dados.pix_copia_cola || '').trim()
-    codigoPagamentoTexto.value = pixCopiaCola
+    pixTextarea.value = pixCopiaCola
     copiarBtn.disabled = false
 
     const erroValidacao = validarDadosParaQrCode(dados)
@@ -218,34 +221,51 @@ async function carregarPagamento() {
 
 async function copiarPix() {
     if (!pixCopiaCola) {
-        mostrarMensagem('Não há código Pix para copiar.', true)
+        mostrarMensagem('Código Pix não encontrado.', true)
         return
     }
 
     try {
-        await navigator.clipboard.writeText(pixCopiaCola)
-        mostrarMensagem('Código Pix copiado com sucesso.')
-        return
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(pixCopiaCola)
+            mostrarMensagem('Pix Copia e Cola copiado com sucesso.')
+            return
+        }
+
+        copiarFallback(pixCopiaCola)
     } catch (error) {
         console.error('Erro ao copiar Pix:', error)
+        copiarFallback(pixCopiaCola)
     }
+}
 
+function copiarFallback(texto) {
     const textarea = document.createElement('textarea')
-    textarea.value = pixCopiaCola
+    textarea.value = texto
+    textarea.setAttribute('readonly', '')
     textarea.style.position = 'fixed'
-    textarea.style.opacity = '0'
+    textarea.style.top = '-1000px'
+    textarea.style.left = '-1000px'
     document.body.appendChild(textarea)
+
     textarea.focus()
     textarea.select()
+    textarea.setSelectionRange(0, textarea.value.length)
+
+    let sucesso = false
 
     try {
-        document.execCommand('copy')
-        mostrarMensagem('Código Pix copiado com sucesso.')
-    } catch (fallbackError) {
-        console.error('Erro no fallback de cópia:', fallbackError)
-        mostrarMensagem('Não foi possível copiar. Selecione e copie manualmente o código Pix.', true)
-    } finally {
-        document.body.removeChild(textarea)
+        sucesso = document.execCommand('copy')
+    } catch (error) {
+        console.error('Erro no fallback de cópia:', error)
+    }
+
+    document.body.removeChild(textarea)
+
+    if (sucesso) {
+        mostrarMensagem('Pix Copia e Cola copiado com sucesso.')
+    } else {
+        mostrarMensagem('Não foi possível copiar automaticamente. Selecione o código Pix e copie manualmente.', true)
     }
 }
 

@@ -34,7 +34,8 @@ def limitar_texto(valor, tamanho):
 
 def montar_campo(id, valor):
     valor = str(valor or "")
-    return f"{id}{len(valor):02d}{valor}"
+    tamanho = len(valor.encode("utf-8"))
+    return f"{id}{tamanho:02d}{valor}"
 
 
 def crc16(payload):
@@ -59,6 +60,21 @@ def normalizar_txid(txid):
     txid = remover_acentos(txid or "")
     txid = re.sub(r"[^A-Za-z0-9]", "", txid).upper()
     return (txid or "PRONTOAQUI")[:25]
+
+
+def validar_crc_pix(payload):
+    payload = str(payload or "").strip()
+
+    if len(payload) < 8 or not payload.startswith("000201"):
+        return False
+
+    payload_sem_crc = payload[:-4]
+    crc_informado = payload[-4:].upper()
+
+    if not payload_sem_crc.endswith("6304"):
+        return False
+
+    return crc16(payload_sem_crc) == crc_informado
 
 
 def gerar_pix_copia_cola(
