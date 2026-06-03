@@ -1633,6 +1633,8 @@ button {
 
 .card h3 {
     font-size: 22px;
+    margin-bottom: 4px;
+    font-weight: 800;
 }
 
 .card p {

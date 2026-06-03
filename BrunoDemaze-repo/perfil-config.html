@@ -468,6 +468,9 @@ editProfileButton.addEventListener("click", () => {
 saveProfileButton.addEventListener("click", async (event) => {
     event.preventDefault();
 
+    const textoOriginalBotao = saveProfileButton.textContent;
+    let salvouComSucesso = false;
+
     const dataNascimentoVisual = profileBirthdateInput.value.trim();
     const dataNascimentoISO = dataNascimentoVisual ? converterDataParaISO(dataNascimentoVisual) : "";
 
@@ -544,6 +547,10 @@ saveProfileButton.addEventListener("click", async (event) => {
         formData.append("remover_foto", "true");
     }
 
+    saveProfileButton.disabled = true;
+    saveProfileButton.textContent = "Salvando...";
+    editProfileButton.disabled = true;
+
     try {
         const resposta = await fetch("/usuario/me", {
             method: "PUT",
@@ -570,6 +577,7 @@ saveProfileButton.addEventListener("click", async (event) => {
         };
 
         localStorage.setItem("usuario", JSON.stringify(usuarioAtualizado));
+        salvouComSucesso = true;
 
         fotoSelecionada = null;
         fotoRemovida = false;
@@ -582,10 +590,19 @@ saveProfileButton.addEventListener("click", async (event) => {
 
         alert(data.mensagem || "Dados atualizados com sucesso.");
         setEditMode(false);
-        carregarDadosUsuario();
+
+        setTimeout(() => {
+            window.location.href = "index.html";
+        }, 1000);
     } catch (error) {
         console.error("Erro ao salvar dados:", error);
         alert("Erro ao conectar com o servidor.");
+    } finally {
+        if (!salvouComSucesso) {
+            saveProfileButton.disabled = false;
+            saveProfileButton.textContent = textoOriginalBotao || "Salvar alterações";
+            editProfileButton.disabled = false;
+        }
     }
 });
 

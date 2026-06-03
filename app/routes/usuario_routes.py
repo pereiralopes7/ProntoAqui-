@@ -556,9 +556,30 @@ def atualizar_minha_conta():
         conn.commit()
 
         cursor.execute("""
-            SELECT foto_perfil, foto_posicao_y, foto_posicao_x, data_nascimento
-            FROM usuarios
-            WHERE id_usuario = ?
+            SELECT
+                u.id_usuario,
+                u.nome,
+                u.email,
+                u.telefone,
+                u.data_nascimento,
+                u.cidade,
+                u.estado,
+                u.tipo_usuario,
+                u.foto_perfil,
+                u.foto_posicao_y,
+                u.foto_posicao_x,
+                e.rua,
+                e.numero,
+                e.cep,
+                e.bairro,
+                e.complemento,
+                e.ponto_referencia,
+                p.profissao,
+                p.descricao
+            FROM usuarios u
+            LEFT JOIN enderecos_usuario e ON e.usuario_id = u.id_usuario
+            LEFT JOIN perfis_trabalhador p ON p.usuario_id = u.id_usuario
+            WHERE u.id_usuario = ?
         """, (user_id,))
 
         usuario_atualizado = cursor.fetchone()
@@ -571,8 +592,38 @@ def atualizar_minha_conta():
 
         conn.close()
 
+        usuario_resposta = {}
+
+        if usuario_atualizado:
+            usuario_resposta = {
+                "id": usuario_atualizado["id_usuario"],
+                "id_usuario": usuario_atualizado["id_usuario"],
+                "nome": usuario_atualizado["nome"],
+                "email": usuario_atualizado["email"],
+                "telefone": usuario_atualizado["telefone"] or "",
+                "data_nascimento": data_nascimento_atualizada,
+                "cidade": usuario_atualizado["cidade"] or "",
+                "estado": usuario_atualizado["estado"] or "",
+                "foto_perfil": foto_normalizada,
+                "foto_posicao_y": foto_posicao_y,
+                "foto_posicao_x": foto_posicao_x,
+                "tipo": usuario_atualizado["tipo_usuario"],
+                "tipo_usuario": usuario_atualizado["tipo_usuario"],
+                "profissao": usuario_atualizado["profissao"] or "",
+                "descricao": usuario_atualizado["descricao"] or "",
+                "endereco": {
+                    "rua": usuario_atualizado["rua"] or "",
+                    "numero": usuario_atualizado["numero"] or "",
+                    "cep": usuario_atualizado["cep"] or "",
+                    "bairro": usuario_atualizado["bairro"] or "",
+                    "complemento": usuario_atualizado["complemento"] or "",
+                    "ponto_referencia": usuario_atualizado["ponto_referencia"] or ""
+                }
+            }
+
         return jsonify({
-            "mensagem": "Conta atualizada com sucesso",
+            "mensagem": "Dados atualizados com sucesso.",
+            "usuario": usuario_resposta,
             "foto_perfil": foto_normalizada,
             "foto_posicao_y": foto_posicao_y,
             "foto_posicao_x": foto_posicao_x,
