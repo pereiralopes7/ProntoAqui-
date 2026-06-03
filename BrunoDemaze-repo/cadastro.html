@@ -42,7 +42,7 @@ Voltar
     <option value="contratado">Prestador de serviço</option>
 </select>
 
-<input id="cadastro-telefone" type="tel" placeholder="Telefone" required>
+<input id="cadastro-telefone" type="tel" placeholder="Telefone" inputmode="numeric" maxlength="11" required>
 <input id="cadastro-cep" type="text" placeholder="CEP" required>
 <input id="cadastro-rua" type="text" placeholder="Rua" required>
 <input id="cadastro-numero" type="text" placeholder="Número" required>
@@ -103,6 +103,7 @@ const ajustesFoto = document.getElementById("ajustes-foto");
 const fotoPosY = document.getElementById("foto-pos-y");
 const cepInput = document.getElementById("cadastro-cep");
 const dataNascimentoInput = document.getElementById("cadastro-data-nascimento");
+const telefoneInput = document.getElementById("cadastro-telefone");
 
 let emailVerificado = false;
 let ultimoCodigoValidado = "";
@@ -242,6 +243,10 @@ dataNascimentoInput.addEventListener("input", () => {
     dataNascimentoInput.value = aplicarMascaraData(dataNascimentoInput.value);
 });
 
+telefoneInput.addEventListener("input", function () {
+    this.value = this.value.replace(/\D/g, "").slice(0, 11);
+});
+
 fotoInput.addEventListener("change", () => {
     const foto = fotoInput.files[0];
 
@@ -363,7 +368,8 @@ function validarCamposCadastro() {
     const dataNascimentoVisual = dataNascimentoInput.value.trim();
     const dataNascimento = converterDataParaISO(dataNascimentoVisual);
     const tipoUsuario = tipoSelect.value;
-    const telefone = document.getElementById("cadastro-telefone").value.trim();
+    telefoneInput.value = telefoneInput.value.replace(/\D/g, "").slice(0, 11);
+    const telefone = telefoneInput.value.trim();
     const cep = document.getElementById("cadastro-cep").value.trim();
     const rua = document.getElementById("cadastro-rua").value.trim();
     const numero = document.getElementById("cadastro-numero").value.trim();
@@ -384,6 +390,7 @@ function validarCamposCadastro() {
     if (senha.length < 6) return bloquearCadastro("A senha deve ter pelo menos 6 caracteres.");
     if (!tipoUsuario) return bloquearCadastro("Selecione se o cadastro é consumidor ou prestador.");
     if (!telefone) return bloquearCadastro("Preencha o telefone.");
+    if (telefone.length !== 11) return bloquearCadastro("O telefone deve conter exatamente 11 números.");
     if (!cep) return bloquearCadastro("Preencha o CEP.");
     if (cep.replace(/\D/g, "").length !== 8) return bloquearCadastro("Informe um CEP válido com 8 números.");
     if (!rua) return bloquearCadastro("Preencha a rua.");
@@ -456,9 +463,11 @@ cadastroForm.addEventListener("submit", async (event) => {
     const dataNascimento = converterDataParaISO(dataNascimentoInput.value.trim());
 
     formData.append("nome", document.getElementById("cadastro-nome").value.trim());
-    formData.append("email", email);
+    telefoneInput.value = telefoneInput.value.replace(/\D/g, "").slice(0, 11);
+
+    formData.append("email", email.trim().toLowerCase());
     formData.append("data_nascimento", dataNascimento);
-    formData.append("telefone", document.getElementById("cadastro-telefone").value.trim());
+    formData.append("telefone", telefoneInput.value);
     formData.append("tipo", tipoSelect.value);
     formData.append("profissao", document.getElementById("cadastro-profissao").value.trim());
     formData.append("descricao", document.getElementById("cadastro-descricao").value.trim());

@@ -42,7 +42,7 @@
         Se o aplicativo do banco não reconhecer o QR Code, use a opção Copiar Pix Copia e Cola. Em ambiente de apresentação, use uma chave Pix real ou uma chave de teste válida.
     </p>
 
-    <button class="btn-amarelo pagamento-confirmar" id="confirmar-pagamento" type="button" disabled>
+    <button class="btn-amarelo pagamento-confirmar" id="btn-confirmar-pagamento" type="button" disabled>
         Confirmar pagamento e finalizar serviço
     </button>
     <button class="btn-secundario pagamento-voltar" type="button" onclick="history.back()">Voltar</button>
@@ -53,8 +53,9 @@
 const token = localStorage.getItem('token')
 const params = new URLSearchParams(window.location.search)
 const conversaId = params.get('conversa_id')
+let prestadorId = params.get('prestador_id')
 const dadosContainer = document.getElementById('pagamento-dados')
-const confirmarBtn = document.getElementById('confirmar-pagamento')
+const confirmarBtn = document.getElementById('btn-confirmar-pagamento')
 const copiarBtn = document.getElementById('btn-copiar-pix')
 const qrcodeContainer = document.getElementById('qrcode')
 const pixTextarea = document.getElementById('pix-copia-cola')
@@ -155,6 +156,7 @@ function gerarQrCode() {
 
 function renderizarPagamento(dados) {
     pagamentoAtual = dados
+    prestadorId = prestadorId || dados.prestador_id
 
     const nomeRecebedor = textoOuPadrao(dados.nome_recebedor, 'Recebedor não informado')
     const tipoChavePix = textoOuPadrao(dados.tipo_chave_pix, 'Tipo da chave Pix não informado')
@@ -175,6 +177,10 @@ function renderizarPagamento(dados) {
     pixCopiaCola = String(dados.pix_copia_cola || '').trim()
     pixTextarea.value = pixCopiaCola
     copiarBtn.disabled = false
+
+    if (pixCopiaCola && !pixCopiaCola.startsWith('000201')) {
+        console.warn('Pix Copia e Cola fora do padrão esperado:', pixCopiaCola)
+    }
 
     const erroValidacao = validarDadosParaQrCode(dados)
 
@@ -246,6 +252,7 @@ function copiarFallback(texto) {
     textarea.style.position = 'fixed'
     textarea.style.top = '-1000px'
     textarea.style.left = '-1000px'
+    textarea.style.opacity = '0'
     document.body.appendChild(textarea)
 
     textarea.focus()
@@ -271,29 +278,49 @@ function copiarFallback(texto) {
 
 copiarBtn.addEventListener('click', copiarPix)
 
-confirmarBtn.addEventListener('click', async () => {
+async function confirmarPagamento() {
     if (!pagamentoAtual || confirmarBtn.disabled) return
 
-    const response = await fetch('/pagamento/confirmar', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ conversa_id: pagamentoAtual.conversa_id })
-    })
-    const data = await response.json().catch(() => ({}))
+    try {
+        const response = await fetch('/pagamento/confirmar', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ conversa_id: conversaId })
+        })
+        const data = await response.json().catch(() => ({}))
 
-    if (!response.ok) {
-        console.error('Erro ao confirmar pagamento:', response.status, data)
-        mostrarMensagem(data.erro || 'Não foi possível confirmar o pagamento.', true)
-        return
+        if (!response.ok) {
+            console.error('Erro ao confirmar pagamento:', response.status, data)
+            mostrarMensagem(data.erro || 'Não foi possível confirmar o pagamento.', true)
+            return
+        }
+
+        confirmarBtn.disabled = true
+        confirmarBtn.textContent = 'Serviço finalizado com sucesso'
+        mostrarMensagem('Pagamento confirmado e serviço finalizado com sucesso. Você será redirecionado para a conversa.')
+
+        const idPrestador =
+            data.servico?.prestador_id ||
+            pagamentoAtual?.prestador_id ||
+            prestadorId
+
+        setTimeout(() => {
+            if (idPrestador) {
+                window.location.href = `perfil.html?id=${encodeURIComponent(idPrestador)}`
+            } else {
+                window.location.href = 'meus-servicos.html'
+            }
+        }, 1000)
+    } catch (error) {
+        console.error('Erro ao confirmar pagamento:', error)
+        mostrarMensagem('Erro ao conectar com o servidor.', true)
     }
+}
 
-    confirmarBtn.disabled = true
-    confirmarBtn.textContent = 'Serviço finalizado com sucesso'
-    mostrarMensagem('Pagamento confirmado e serviço finalizado com sucesso.')
-})
+confirmarBtn.addEventListener('click', confirmarPagamento)
 
 carregarPagamento()
 </script>

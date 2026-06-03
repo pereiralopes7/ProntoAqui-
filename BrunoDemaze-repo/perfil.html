@@ -507,7 +507,7 @@ botaoFinalizarServico.addEventListener('click', async () => {
         return
     }
 
-    window.location.href = `pagamento.html?conversa_id=${encodeURIComponent(statusServicoAtual.conversa_id)}`
+    window.location.href = `pagamento.html?conversa_id=${encodeURIComponent(statusServicoAtual.conversa_id)}&prestador_id=${encodeURIComponent(profissional.id)}`
 })
 </script>
 

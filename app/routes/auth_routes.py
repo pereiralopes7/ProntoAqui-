@@ -11,7 +11,15 @@ from app.utils.security import hash_senha
 from flask import Blueprint, request, jsonify
 
 from app.database.connection import get_connection
-from app.services.auth_service import cadastrar_usuario, login_usuario, login_admin
+from app.services.auth_service import (
+    EmailDuplicadoError,
+    TelefoneDuplicadoError,
+    cadastrar_usuario,
+    login_usuario,
+    login_admin,
+    normalizar_email,
+    normalizar_telefone,
+)
 
 auth = Blueprint("auth", __name__)
 
@@ -93,6 +101,8 @@ def register():
 
     try:
         caminho_foto = None
+        email = normalizar_email(data["email"])
+        telefone = normalizar_telefone(data.get("telefone"))
         data_nascimento = normalizar_data_nascimento(data.get("data_nascimento"))
 
         if foto and getattr(foto, 'filename', None):
@@ -100,19 +110,25 @@ def register():
 
         cadastrar_usuario(
             data["nome"],
-            data["email"],
+            email,
             data["senha"],
             tipo,
             data.get("descricao"),
-            data.get("telefone"),
+            telefone,
             endereco,
             data.get("profissao"),
             caminho_foto,
             data_nascimento
         )
 
+    except EmailDuplicadoError as e:
+        return jsonify({"erro": str(e)}), 409
+
+    except TelefoneDuplicadoError as e:
+        return jsonify({"erro": str(e)}), 409
+
     except sqlite3.IntegrityError:
-        return jsonify({"erro": "Este email ja esta cadastrado"}), 409
+        return jsonify({"erro": "E-mail já cadastrado."}), 409
 
     except ValueError as e:
         return jsonify({"erro": str(e)}), 400

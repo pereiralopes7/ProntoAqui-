@@ -2,6 +2,28 @@ from app.database.connection import get_connection
 from app.utils.security import hash_senha, verificar_senha
 from app.utils.jwt_handler import gerar_token
 
+
+class EmailDuplicadoError(ValueError):
+    pass
+
+
+class TelefoneDuplicadoError(ValueError):
+    pass
+
+
+def normalizar_email(email):
+    return str(email or "").strip().lower()
+
+
+def normalizar_telefone(telefone):
+    telefone = "".join(char for char in str(telefone or "") if char.isdigit())
+
+    if len(telefone) != 11:
+        raise ValueError("O telefone deve conter exatamente 11 números.")
+
+    return telefone
+
+
 def preparar_colunas_usuario(cursor):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
@@ -60,6 +82,36 @@ def preparar_colunas_usuario(cursor):
 
     return None
 
+
+def email_ja_cadastrado(cursor, email):
+    cursor.execute("""
+        SELECT 1
+        FROM usuarios
+        WHERE lower(trim(email)) = ?
+        LIMIT 1
+    """, (email,))
+
+    return cursor.fetchone() is not None
+
+
+def telefone_ja_cadastrado(cursor, telefone):
+    cursor.execute("""
+        SELECT telefone
+        FROM usuarios
+        WHERE telefone IS NOT NULL AND trim(telefone) != ''
+    """)
+
+    for usuario in cursor.fetchall():
+        try:
+            telefone_existente = normalizar_telefone(usuario["telefone"])
+        except ValueError:
+            continue
+
+        if telefone_existente == telefone:
+            return True
+
+    return False
+
 def garantir_tabela_endereco(cursor):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS enderecos_usuario (
@@ -107,89 +159,103 @@ def cadastrar_usuario(
     conn = get_connection()
     cursor = conn.cursor()
 
-    preparar_colunas_usuario(cursor)
-    garantir_tabela_endereco(cursor)
+    try:
+        preparar_colunas_usuario(cursor)
+        garantir_tabela_endereco(cursor)
 
-    senha_hash = hash_senha(senha)
-    cidade = endereco.get("cidade") if endereco else None
-    estado = endereco.get("estado") if endereco else None
+        email = normalizar_email(email)
+        telefone = normalizar_telefone(telefone)
 
-    colunas = [
-        "nome",
-        "email",
-        "senha",
-        "tipo_usuario",
-        "telefone",
-        "foto_perfil",
-        "cidade",
-        "estado",
-        "data_nascimento"
-    ]
-    valores = [
-        nome,
-        email,
-        senha_hash,
-        tipo,
-        telefone,
-        caminho_foto,
-        cidade,
-        estado,
-        data_nascimento
-    ]
+        if email_ja_cadastrado(cursor, email):
+            raise EmailDuplicadoError("E-mail já cadastrado.")
 
-    placeholders = ", ".join(["?"] * len(colunas))
-    colunas_sql = ", ".join([f'"{coluna}"' for coluna in colunas])
+        if telefone_ja_cadastrado(cursor, telefone):
+            raise TelefoneDuplicadoError("Telefone já cadastrado.")
 
-    cursor.execute(f"""
-        INSERT INTO usuarios ({colunas_sql})
-        VALUES ({placeholders})
-    """, valores)
+        senha_hash = hash_senha(senha)
+        cidade = endereco.get("cidade") if endereco else None
+        estado = endereco.get("estado") if endereco else None
 
-    user_id = cursor.lastrowid
+        colunas = [
+            "nome",
+            "email",
+            "senha",
+            "tipo_usuario",
+            "telefone",
+            "foto_perfil",
+            "cidade",
+            "estado",
+            "data_nascimento"
+        ]
+        valores = [
+            nome,
+            email,
+            senha_hash,
+            tipo,
+            telefone,
+            caminho_foto,
+            cidade,
+            estado,
+            data_nascimento
+        ]
 
-    if endereco:
+        placeholders = ", ".join(["?"] * len(colunas))
+        colunas_sql = ", ".join([f'"{coluna}"' for coluna in colunas])
+
+        cursor.execute(f"""
+            INSERT INTO usuarios ({colunas_sql})
+            VALUES ({placeholders})
+        """, valores)
+
+        user_id = cursor.lastrowid
+
+        if endereco:
+            cursor.execute("""
+                INSERT INTO enderecos_usuario (
+                    usuario_id, rua, numero, cep, bairro, complemento, ponto_referencia
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user_id,
+                endereco.get("rua"),
+                endereco.get("numero"),
+                endereco.get("cep"),
+                endereco.get("bairro"),
+                endereco.get("complemento"),
+                endereco.get("ponto_referencia")
+            ))
+
         cursor.execute("""
-            INSERT INTO enderecos_usuario (
-                usuario_id, rua, numero, cep, bairro, complemento, ponto_referencia
+            CREATE TABLE IF NOT EXISTS perfis_trabalhador (
+                id_perfil INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id INTEGER UNIQUE NOT NULL,
+                profissao TEXT,
+                descricao TEXT,
+                FOREIGN KEY(usuario_id) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            user_id,
-            endereco.get("rua"),
-            endereco.get("numero"),
-            endereco.get("cep"),
-            endereco.get("bairro"),
-            endereco.get("complemento"),
-            endereco.get("ponto_referencia")
-        ))
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS perfis_trabalhador (
-            id_perfil INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario_id INTEGER UNIQUE NOT NULL,
-            profissao TEXT,
-            descricao TEXT,
-            FOREIGN KEY(usuario_id) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
-        )
-    """)
+        cursor.execute("PRAGMA table_info(perfis_trabalhador)")
+        colunas_perfil = [coluna[1] for coluna in cursor.fetchall()]
 
-    cursor.execute("PRAGMA table_info(perfis_trabalhador)")
-    colunas_perfil = [coluna[1] for coluna in cursor.fetchall()]
+        if "profissao" not in colunas_perfil:
+            cursor.execute("ALTER TABLE perfis_trabalhador ADD COLUMN profissao TEXT")
 
-    if "profissao" not in colunas_perfil:
-        cursor.execute("ALTER TABLE perfis_trabalhador ADD COLUMN profissao TEXT")
+        if "descricao" not in colunas_perfil:
+            cursor.execute("ALTER TABLE perfis_trabalhador ADD COLUMN descricao TEXT")
 
-    if "descricao" not in colunas_perfil:
-        cursor.execute("ALTER TABLE perfis_trabalhador ADD COLUMN descricao TEXT")
+        if tipo == "contratado":
+            cursor.execute("""
+                INSERT INTO perfis_trabalhador (usuario_id, profissao, descricao)
+                VALUES (?, ?, ?)
+            """, (user_id, profissao, descricao))
 
-    if tipo == "contratado":
-        cursor.execute("""
-            INSERT INTO perfis_trabalhador (usuario_id, profissao, descricao)
-            VALUES (?, ?, ?)
-        """, (user_id, profissao, descricao))
-
-    conn.commit()
-    conn.close()
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 def criar_admin(email, senha, nome="Administrador"):
     """Cria um usuário admin com permissões totais"""
