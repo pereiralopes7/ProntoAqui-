@@ -34,7 +34,10 @@ Voltar
 <button type="button" id="gerar-codigo">Gerar código de verificação</button>
 <input id="codigo-verificacao" type="text" inputmode="numeric" maxlength="6" placeholder="Digite o código de verificação">
 
-<input id="cadastro-senha" type="password" placeholder="Senha" required>
+<div class="password-wrapper">
+    <input id="cadastro-senha" type="password" placeholder="Senha" required>
+    <button type="button" class="toggle-password" data-target="cadastro-senha" aria-label="Mostrar senha">👁️</button>
+</div>
 
 <select id="cadastro-tipo" required>
     <option value="">Cadastrar como</option>
@@ -245,6 +248,20 @@ dataNascimentoInput.addEventListener("input", () => {
 
 telefoneInput.addEventListener("input", function () {
     this.value = this.value.replace(/\D/g, "").slice(0, 11);
+});
+
+document.querySelectorAll(".toggle-password").forEach((button) => {
+    button.addEventListener("click", () => {
+        const targetId = button.getAttribute("data-target");
+        const input = document.getElementById(targetId);
+
+        if (!input) return;
+
+        const isPassword = input.type === "password";
+        input.type = isPassword ? "text" : "password";
+        button.textContent = isPassword ? "🙈" : "👁️";
+        button.setAttribute("aria-label", isPassword ? "Ocultar senha" : "Mostrar senha");
+    });
 });
 
 fotoInput.addEventListener("change", () => {

@@ -262,6 +262,42 @@ outline:none;
 color:#696969;
 }
 
+.password-wrapper {
+position:relative;
+width:100%;
+margin-bottom:16px;
+}
+
+.password-wrapper input {
+width:100%;
+padding-right:48px;
+margin-bottom:0;
+box-sizing:border-box;
+}
+
+.toggle-password {
+position:absolute;
+right:14px;
+top:50%;
+transform:translateY(-50%);
+width:36px;
+height:36px;
+display:flex;
+align-items:center;
+justify-content:center;
+border:none;
+background:transparent;
+cursor:pointer;
+font-size:18px;
+padding:4px;
+line-height:1;
+z-index:2;
+}
+
+.toggle-password:focus {
+outline:none;
+}
+
 .auth-box .btn-amarelo{
 width:100%;
 height:50px;

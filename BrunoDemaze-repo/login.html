@@ -19,7 +19,10 @@ Voltar
 <h2>Entrar</h2>
 
 <input id="login-email" type="email" placeholder="Email" required>
-<input id="login-senha" type="password" placeholder="Senha" required>
+<div class="password-wrapper">
+    <input id="login-senha" type="password" placeholder="Senha" required>
+    <button type="button" class="toggle-password" data-target="login-senha" aria-label="Mostrar senha">👁️</button>
+</div>
 
 <button class="btn-amarelo" type="submit">Entrar</button>
 
@@ -46,6 +49,20 @@ function showPopup(message, isError = false) {
         statusPopup.classList.remove("is-visible");
     }, 2200);
 }
+
+document.querySelectorAll(".toggle-password").forEach((button) => {
+    button.addEventListener("click", () => {
+        const targetId = button.getAttribute("data-target");
+        const input = document.getElementById(targetId);
+
+        if (!input) return;
+
+        const isPassword = input.type === "password";
+        input.type = isPassword ? "text" : "password";
+        button.textContent = isPassword ? "🙈" : "👁️";
+        button.setAttribute("aria-label", isPassword ? "Ocultar senha" : "Mostrar senha");
+    });
+});
 
 loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();

@@ -25,7 +25,10 @@
 <form id="form-admin" onsubmit="criarAdmin(event)">
 <input type="text" id="nome-admin" placeholder="Nome do administrador" required>
 <input type="email" id="email-admin" placeholder="Email do administrador" required>
-<input type="password" id="senha-admin" placeholder="Senha" required>
+<div class="password-wrapper">
+  <input type="password" id="senha-admin" placeholder="Senha" required>
+  <button type="button" class="toggle-password" data-target="senha-admin" aria-label="Mostrar senha">👁️</button>
+</div>
 
 <button type="submit" class="btn-amarelo">Criar Admin</button>
 </form>
@@ -39,6 +42,20 @@ Esta página só pode ser usada uma vez para criar o primeiro administrador.
 </section>
 
 <script>
+document.querySelectorAll(".toggle-password").forEach((button) => {
+  button.addEventListener("click", () => {
+    const targetId = button.getAttribute("data-target")
+    const input = document.getElementById(targetId)
+
+    if (!input) return
+
+    const isPassword = input.type === "password"
+    input.type = isPassword ? "text" : "password"
+    button.textContent = isPassword ? "🙈" : "👁️"
+    button.setAttribute("aria-label", isPassword ? "Ocultar senha" : "Mostrar senha")
+  })
+})
+
 async function criarAdmin(event) {
   event.preventDefault()
 
