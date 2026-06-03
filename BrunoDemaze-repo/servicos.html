@@ -56,7 +56,11 @@ searchInput.addEventListener('input', function() {
 });
 
 function mostrarMensagemInicial() {
-    searchResults.innerHTML = '';
+    searchResults.innerHTML = `
+        <div class="empty-state">
+            Pesquise por nome ou profissão para encontrar um profissional.
+        </div>
+    `;
 }
 
 function escaparHtml(valor) {
@@ -74,7 +78,7 @@ async function carregarProfissionais(query = '') {
         return;
     }
 
-    searchResults.innerHTML = "<p>Buscando profissionais...</p>";
+    searchResults.innerHTML = '<div class="empty-state">Buscando profissionais...</div>';
 
     try {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
@@ -83,20 +87,20 @@ async function carregarProfissionais(query = '') {
         
         if (!response.ok) {
             console.error('Erro ao buscar profissionais:', response.status, results);
-            searchResults.innerHTML = '<p>Não foi possível carregar os profissionais.</p>';
+            searchResults.innerHTML = '<div class="empty-state">Não foi possível carregar os profissionais.</div>';
             return;
         }
         
         displayResults(results, query);
     } catch (error) {
         console.error('Erro na busca:', error);
-        searchResults.innerHTML = '<p>Erro ao conectar com o servidor.</p>';
+        searchResults.innerHTML = '<div class="empty-state">Erro ao conectar com o servidor.</div>';
     }
 }
 
 function displayResults(results, query) {
     if (!results || results.length === 0) {
-        searchResults.innerHTML = '<p>Nenhum profissional encontrado.</p>';
+        searchResults.innerHTML = '<div class="empty-state">Nenhum profissional encontrado.</div>';
         return;
     }
     

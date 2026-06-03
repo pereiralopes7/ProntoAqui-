@@ -181,13 +181,13 @@ async function carregarUsuarioLogado() {
 async function carregarSolicitacoes() {
     if (usuarioPrestador) {
         tituloServicos.textContent = 'Solicitações em andamento'
-        subtituloServicos.textContent = 'Acompanhe consumidores interessados no seu serviço.'
+        subtituloServicos.textContent = 'Acompanhe conversas, negociações e serviços com consumidores.'
     } else {
         tituloServicos.textContent = 'Contatos'
-        subtituloServicos.textContent = 'Acompanhe os prestadores com quem você já conversou.'
+        subtituloServicos.textContent = 'Acompanhe suas conversas com prestadores.'
     }
 
-    container.innerHTML = '<p>Carregando solicitações...</p>'
+    container.innerHTML = '<div class="empty-state">Carregando solicitações...</div>'
 
     try {
         const response = await fetch('/chat/minhas-solicitacoes', {
@@ -197,7 +197,7 @@ async function carregarSolicitacoes() {
 
         if (!response.ok) {
             console.error('Erro ao carregar solicitações:', response.status, data)
-            container.innerHTML = `<p>${escaparHtml(data.erro || 'Não foi possível carregar as solicitações.')}</p>`
+            container.innerHTML = `<div class="empty-state">${escaparHtml(data.erro || 'Não foi possível carregar as solicitações.')}</div>`
             return
         }
 
@@ -206,8 +206,8 @@ async function carregarSolicitacoes() {
 
         if (!solicitacoes.length) {
             container.innerHTML = usuarioPrestador
-                ? '<p>Nenhuma solicitação em andamento ainda.</p>'
-                : '<p>Você ainda não entrou em contato com nenhum prestador.</p>'
+                ? '<div class="empty-state">Nenhuma solicitação em andamento.</div>'
+                : '<div class="empty-state">Nenhum contato encontrado ainda.</div>'
             return
         }
 
@@ -230,7 +230,7 @@ async function carregarSolicitacoes() {
         `).join('')
     } catch (error) {
         console.error('Erro ao carregar solicitações:', error)
-        container.innerHTML = '<p>Erro ao conectar com o servidor.</p>'
+        container.innerHTML = '<div class="empty-state">Erro ao conectar com o servidor.</div>'
     }
 }
 
